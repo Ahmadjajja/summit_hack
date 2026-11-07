@@ -37,7 +37,9 @@ def _load(trip_id: str, version: int):
             hints["_over_budget"] = True
         prev = plans_col().find_one({"trip_id": trip_id, "version": v["version"]})
         for issue in v.get("issues", []):
-            if issue.get("slot") and prev:
+            # drop the old pick only when there's a concrete fix or it broke a hard rule;
+            # a note without a replacement shouldn't shrink the options
+            if issue.get("slot") and prev and (issue.get("found") or issue.get("severity") == "hard"):
                 picked = next((s["pick"] for s in prev["slots"] if s["slot"] == issue["slot"]), None)
                 if picked:
                     excluded.append(picked)
@@ -63,8 +65,11 @@ def _subq_pick(req: TripRequest, by_slot: dict[str, list[dict]], hints: dict) ->
         f"Verifier notes from the previous loop (suggested replacements; _over_budget means cut cost): {json.dumps(hints)}\n\n"
         "Candidates by slot:\n" + json.dumps(by_slot, indent=1)
     )
-    answers, tokens = {}, 0
-    slots = list(by_slot)
+    # A slot with a single option has nothing to decide (SubQ needs 2+ options): take it.
+    answers = {s: {"choice": opts[0]["id"], "confidence": 1.0, "probs": {opts[0]["id"]: 1.0}}
+               for s, opts in by_slot.items() if len(opts) == 1}
+    tokens = 0
+    slots = [s for s in by_slot if len(by_slot[s]) >= 2]
     for i in range(0, len(slots), 16):  # Snap takes at most 16 questions per call
         qs = {
             s: subq_client.choice_q(

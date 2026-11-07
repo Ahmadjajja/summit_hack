@@ -74,7 +74,13 @@ def make_orchestrator(coordinator_address: str, mailbox: bool | None = None) -> 
             await ctx.send(sender, _reply("Approved. Booking it now…"))
             return
 
-        out, version = await asyncio.to_thread(plan_trip, trip_id, text, ctx.logger.info)
+        try:
+            out, version = await asyncio.to_thread(plan_trip, trip_id, text, ctx.logger.info)
+        except Exception as e:  # never leave the user without an answer
+            ctx.logger.exception("planning failed")
+            await ctx.send(sender, _reply(f"Sorry, something went wrong while planning ({type(e).__name__}). "
+                                          "Please try again or rephrase."))
+            return
         _sessions().update_one({"sender": sender},
                                {"$set": {"trip_id": trip_id, "awaiting_version": version}}, upsert=True)
         await ctx.send(sender, _reply(out))
