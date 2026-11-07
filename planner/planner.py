@@ -82,6 +82,10 @@ def _subq_pick(req: TripRequest, by_slot: dict[str, list[dict]], hints: dict) ->
 
 def run_planner(signal: Signal) -> Signal:
     trip_id, version = signal.trip_id, signal.version or 1
+    req = TripRequest(**clean(requests_col().find_one({"trip_id": trip_id})))
+    if req.intent != "book":                       # cancel / reschedule / extend
+        from planner.changes import run_change_planner
+        return run_change_planner(Signal(type="replan", trip_id=trip_id, version=version), req)
     req, cands, excluded, hints = _load(trip_id, version)
 
     by_slot: dict[str, list[dict]] = {}
@@ -111,7 +115,5 @@ def run_planner(signal: Signal) -> Signal:
         actions=[Action(op="book", id=s.pick, cost_usd=s.cost_usd) for s in slots],
         total_usd=total, money_delta_usd=total, excluded_ids=excluded,
     )
-    # TODO(P1): cancel / reschedule / extend — read ledger bookings, build cancel/modify
-    # actions and set money_delta_usd (negative = refund). Same PlanPackage shape.
     plans_col().replace_one({"trip_id": trip_id, "version": version}, plan.model_dump(), upsert=True)
     return Signal(type="check", trip_id=trip_id, version=version)

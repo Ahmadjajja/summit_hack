@@ -18,6 +18,10 @@ coverage rules (R-04, R-05, R-09) become soft warnings.
   R-12 refund_matches_policy   cancel refund = vendor policy refund
   R-13 change_price_matches    modify price = vendor policy price
   R-14 targets_exist           changed/cancelled bookings are active on this trip
+  R-15 plan_matches_intent     the actions fit what was asked: a cancel only cancels,
+                               a change doesn't re-book the trip, a new booking doesn't
+                               duplicate a trip that's already booked, and there's
+                               something to do at all
   R-20 cheaper_equivalent      (soft) same-slot option ≥10% cheaper and equivalent
 """
 from datetime import date, timedelta
@@ -231,6 +235,28 @@ def r14_targets(plan, booked):
                  detail=f"{len(plan.actions)} action(s) checked"), issues
 
 
+def r15_intent(plan, req, booked):
+    problems = []
+    ops = [a.op for a in plan.actions]
+    if not plan.actions:
+        problems.append(f"nothing to do for this {req.intent} request (which booking is it about?)")
+    elif req.intent == "cancel" and any(op != "cancel" for op in ops):
+        problems.append(f"a cancel request must only cancel, but the plan would also {sorted(set(ops) - {'cancel'})}")
+    elif req.intent in ("reschedule", "extend"):
+        books = [a for a in plan.actions if a.op == "book"]
+        cancels = {a.id.split("-")[0] for a in plan.actions if a.op == "cancel"}
+        unpaired = [a.id for a in books if a.id.split("-")[0] not in cancels]
+        if unpaired:
+            problems.append(f"a {req.intent} would book {unpaired} without replacing anything (double booking)")
+    elif req.intent == "book" and booked:
+        dupes = sorted(a.id for a in plan.actions if a.op == "book" and a.id in booked)
+        problems.append(f"this trip is already booked ({len(booked)} active bookings); a new plan would book it "
+                        f"again{' including ' + ', '.join(dupes) if dupes else ''}. Say what to change instead.")
+    issues = [Issue(rule="R-15 plan_matches_intent", severity="hard", why=p) for p in problems]
+    return Check(rule="R-15 plan_matches_intent", ok=not problems, severity="hard",
+                 detail="; ".join(problems) or f"actions fit a {req.intent} request"), issues
+
+
 def r20_cheaper_equivalent(plan, req):
     from planner.planner import candidate_cost
     issues = []
@@ -268,8 +294,9 @@ def run_all(plan: PlanPackage, req: TripRequest, events: list[dict]):
         r09_flights(plan, req, items, change, coverage),
         r04_events(plan, req, items, events, span, coverage),
     ]
+    booked = active_bookings(plan.trip_id)
+    results.append(r15_intent(plan, req, booked))
     if change:
-        booked = active_bookings(plan.trip_id)
         results += [r14_targets(plan, booked), r12_refunds(plan, booked), r13_change_price(plan, booked)]
     else:
         results.append(r20_cheaper_equivalent(plan, req))

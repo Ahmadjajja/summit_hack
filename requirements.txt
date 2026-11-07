@@ -7,3 +7,4 @@ google-genai>=1.0     # P2: Gemini verifier
 uagents>=0.22         # P1/P3: ASI:One orchestrator + Fetch agents (check version against Agentverse docs)
 uagents-core>=0.3
 stripe>=8.0           # P3: locker room, TEST keys only
+pytest>=8.0             # tests/test_intake.py

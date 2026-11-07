@@ -35,8 +35,8 @@ def decide(state: str, questions: dict[str, dict], images: list | None = None) -
       choice -> {"choice": label, "probs": {label: p}, "confidence": c}
       noul   -> {"yes": p}
     """
-    if len(questions) > 16:
-        raise SubQError("SubQ Snap takes at most 16 questions per call; split the call.")
+    if len(questions) > 128:  # docs.subq.ai/endpoints/decisions-api: 1-128 questions per request
+        raise SubQError("SubQ Snap takes at most 128 questions per call; split the call.")
     body = {"model": config.SUBQ_MODEL, "state": state, "questions": questions}
     if images:
         body["images"] = images[:4]

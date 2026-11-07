@@ -103,6 +103,7 @@ Rules check the trip **as it will be after the plan runs**. For a book plan that
 | `R-12 refund_matches_policy` | hard | a cancel's expected refund = vendor policy refund (`vendors/policy.py`) |
 | `R-13 change_price_matches` | hard | a change's price = vendor policy price |
 | `R-14 targets_exist` | hard | changed/cancelled bookings are active on this trip; new items exist |
+| `R-15 plan_matches_intent` | hard | the actions fit the request: a cancel only cancels, a change never re-books the trip, a new booking doesn't duplicate an already-booked trip, and there's something to do at all |
 | `R-20 cheaper_equivalent` | soft | the same slot has an option ≥10% cheaper, same date, departure within 90 min (flights) or same area and rating within 0.2 |
 
 \* Soft when the traveller asked to cancel. Gaps they asked for are shown as heads-ups, not blocks.

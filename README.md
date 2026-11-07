@@ -61,6 +61,26 @@ To see the worst case (3 loops, then approval blocked), run `python run_local.py
 
 Copy `.env.example` to `.env` and fill in a key to switch that part to the real API. Empty keys stay on the mock.
 
+### Run the real system (ASI:One chat + Fetch.ai agents)
+
+```bash
+AGENTS_USE_MAILBOX=true python -m orchestrator.agent
+```
+
+This runs the orchestrator (with a mailbox for ASI:One) and the five booking agents in one process. It prints the orchestrator address; open it on Agentverse and use "Chat with Agent". In chat: describe a trip → **approve** → it books. Then try "Stay 2 more nights in Osaka", "Cancel my Osaka hotel" or "Cancel the whole trip". You need `AGENT_SEED_PHRASE` set to your own secret first.
+
+### All tests (offline, about 2 minutes)
+
+```bash
+python -m pytest -q tests/test_intake.py      # P1 intake
+python -m tests.test_p2_verifier              # P2 verifier + gate
+python -m tests.test_p3_inprocess             # P3 policy + locker room
+python -m tests.test_e2e_chat                 # one conversation through the whole pipeline
+python run_booking_local.py                   # booking agents: book/reschedule/extend/cancel/failsafe
+python run_booking_local.py tamper            # vendor overcharge refused
+python -m tests.test_asi_chat_agents          # chat protocol → orchestrator → Fetch agents → chat
+```
+
 ## Demo walkthrough
 
 1. `pip install -r requirements.txt`, then `python run_local.py` - the full flow on mock data: the planner proposes v1, the verifier catches cheaper equivalents, the plan is revised, and v2 passes.
@@ -145,15 +165,15 @@ To run everything in one process, add the orchestrator agent to the same `Bureau
 common/        contracts.py (all data shapes) · db.py · signals.py · metrics.py · config.py
 seed/          seed_japan.py: synthetic Japan trip (flights, hotels, dining, events)
 intake/        ① subq_client.py · intake.py
-planner/       ② planner.py
+planner/       ② planner.py (new trips) · changes.py (cancel / reschedule / extend)
 verifier/      ③ checks.py (Python rules) · verifier.py (Gemini review + loop decision)
 gate/          ④ gate.py (approval message, scoreboard, plan hash)
 locker/        ⑤ locker.py (payment checks + charge) · agent.py (locker room uAgent, payment protocol buyer)
 vendors/       ⑥ vendors.py (book/modify/cancel → ledger) · policy.py (refunds, change actions) · agents.py (coordinator + vendor uAgents) · protocol.py (messages)
-orchestrator/  pipeline.py (the loop) · agent.py (ASI:One chat agent)
+orchestrator/  pipeline.py (the loop) · agent.py (ASI:One chat agent → Fetch booking agents)
 run_local.py   end-to-end run with mocks (in-process)
 run_booking_local.py  P3 test: real uAgents + payment protocol, offline
-tests/        test_p2_verifier.py · test_p3_inprocess.py
+tests/         test_intake.py · test_p2_verifier.py · test_p3_inprocess.py · test_e2e_chat.py · test_asi_chat_agents.py
 ```
 
 ## Check first (15 min)
