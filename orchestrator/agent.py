@@ -44,7 +44,10 @@ def _reply(text: str) -> ChatMessage:
 def make_orchestrator(coordinator_address: str, mailbox: bool | None = None) -> Agent:
     use_mailbox = config.AGENTS_USE_MAILBOX if mailbox is None else mailbox
     kw = {"port": 8000, "mailbox": True} if use_mailbox else {}
-    agent = Agent(name="tripcheck", seed=config.AGENT_SEED_PHRASE, **kw)
+    agent = Agent(name="tripcheck", seed=config.AGENT_SEED_PHRASE,
+                  description="TripCheck: plans your trip, an independent AI verifies it, you approve, "
+                              "then Fetch.ai agents book. Handles cancel, reschedule and extend mid-trip.",
+                  **kw)
     chat = Protocol(spec=chat_protocol_spec)
     booking = Protocol(name="TripCheckBookingClient", version="0.1.0")
 
@@ -87,6 +90,22 @@ def make_orchestrator(coordinator_address: str, mailbox: bool | None = None) -> 
             return
         _sessions().update_one({"_id": s["_id"]}, {"$set": {"executing": None}})
         await ctx.send(s["sender"], _reply(msg.summary))
+
+    if use_mailbox and config.AGENTVERSE_API_KEY:
+        @agent.on_event("startup")
+        async def connect_mailbox(ctx: Context):
+            """Register on Agentverse with the API key (what the inspector's Connect button does)."""
+            from uagents.mailbox import AgentverseConnectRequest, RegistrationRequest, register_in_agentverse
+            req = AgentverseConnectRequest(user_token=config.AGENTVERSE_API_KEY, agent_type="mailbox")
+            details = RegistrationRequest(
+                address=agent.address, name=agent.name, handle=agent._handle,
+                profile=agent._build_registration_profile(), endpoints=agent._endpoints,
+                protocols=list(agent.protocols.keys()), metadata=agent.metadata)
+            res = await register_in_agentverse(req, agent._identity, agent._prefix, agent._agentverse, details)
+            ctx.logger.info(f"Agentverse mailbox: {'connected' if res.success else 'FAILED: ' + str(res.detail)}")
+            if res.success:
+                ctx.logger.info(f"Chat in ASI:One: https://asi1.ai/ai/{agent.address}")
+                ctx.logger.info(f"Agent page:      https://agentverse.ai/agents/details/{agent.address}/profile")
 
     agent.include(chat, publish_manifest=True)
     agent.include(booking)

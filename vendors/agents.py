@@ -8,7 +8,7 @@
 
 Run all five agents together:
     python -m vendors.agents            # prints the coordinator address for P1
-Set AGENTS_USE_MAILBOX=true (on a laptop with internet) to register them on
+Set BOOKING_AGENTS_MAILBOX=true (with internet) to also register them on
 Agentverse so they show up there.
 """
 import asyncio
@@ -38,7 +38,7 @@ BOOKING = Protocol(name="TripCheckBooking", version="0.1.0")
 
 def _kwargs(name: str, port: int) -> dict:
     kw = {"seed": f"{config.AGENT_SEED_PHRASE}-{name}"}
-    if config.AGENTS_USE_MAILBOX:
+    if config.BOOKING_AGENTS_MAILBOX:
         kw.update(port=port, mailbox=True)
     return kw
 
@@ -225,7 +225,7 @@ DEFAULT_SEED = "tripcheck-orchestrator-dev-seed"
 
 
 def main():
-    if config.AGENTS_USE_MAILBOX and config.AGENT_SEED_PHRASE == DEFAULT_SEED:
+    if (config.AGENTS_USE_MAILBOX or config.BOOKING_AGENTS_MAILBOX) and config.AGENT_SEED_PHRASE == DEFAULT_SEED:
         raise SystemExit("Set AGENT_SEED_PHRASE in .env to a long random secret before registering on "
                          "Agentverse. The default seed is public, so anyone could impersonate these agents.")
     from seed.seed_japan import seed

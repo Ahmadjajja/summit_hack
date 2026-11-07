@@ -39,8 +39,20 @@ AGENTVERSE_API_KEY = _s("AGENTVERSE_API_KEY")
 ASI_ONE_API_KEY = _s("ASI_ONE_API_KEY")
 # true = never charge anything real; payments are mock records (Stripe test still allowed if set)
 BOOKING_DRY_RUN = _s("BOOKING_DRY_RUN", "true").lower() != "false"
-# true = register agents on Agentverse with a mailbox (run on a laptop with internet)
+# true = register the chat agent on Agentverse with a mailbox (needs internet)
 AGENTS_USE_MAILBOX = _s("AGENTS_USE_MAILBOX", "false").lower() == "true"
+# true = also register the 5 booking agents on Agentverse (they work locally without it)
+BOOKING_AGENTS_MAILBOX = _s("BOOKING_AGENTS_MAILBOX", "false").lower() == "true"
+
+# true = make uagents' HTTP client use HTTPS_PROXY / system proxy settings (corporate or sandboxed networks)
+if _s("AIOHTTP_TRUST_ENV", "false").lower() == "true":
+    import aiohttp
+    _orig_init = aiohttp.ClientSession.__init__
+
+    def _init(self, *a, **kw):
+        kw.setdefault("trust_env", True)
+        _orig_init(self, *a, **kw)
+    aiohttp.ClientSession.__init__ = _init
 
 # Pretend "now" for mid-trip demos, e.g. 2026-11-18T10:00:00 (empty = real time)
 DEMO_NOW = _s("DEMO_NOW")

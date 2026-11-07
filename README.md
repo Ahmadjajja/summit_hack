@@ -75,7 +75,7 @@ Type a trip request, then `approve`. Follow-ups go to the same trip ("Stay 2 mor
 AGENTS_USE_MAILBOX=true python -m orchestrator.agent
 ```
 
-This runs the orchestrator (with a mailbox for ASI:One) and the five booking agents in one process. It prints the orchestrator address; open it on Agentverse and use "Chat with Agent". In chat: describe a trip → **approve** → it books. Then try "Stay 2 more nights in Osaka", "Cancel my Osaka hotel" or "Cancel the whole trip". You need `AGENT_SEED_PHRASE` set to your own secret first.
+This runs the orchestrator and the five booking agents in one process. With `AGENTVERSE_API_KEY` in `.env`, the orchestrator registers itself on Agentverse automatically and logs its agent page link. Open that page and click **Chat with Agent**. Behind a proxy, add `AIOHTTP_TRUST_ENV=true`. In chat: describe a trip → **approve** → it books. Then try "Stay 2 more nights in Osaka", "Cancel my Osaka hotel" or "Cancel the whole trip". You need `AGENT_SEED_PHRASE` set to your own secret first.
 
 ### All tests (offline, about 2 minutes)
 
