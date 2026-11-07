@@ -7,6 +7,39 @@ AIE Code Summit Hackathon, Nov 7, 2026 · Track: Trust but Verify
 - **Spec (start here):** [`SPEC.md`](SPEC.md)
 - **Visual system design / pitch:** [`docs/tripcheck-build-spec.html`](docs/tripcheck-build-spec.html) (open in a browser)
 
+## Architecture
+
+```mermaid
+flowchart TD
+    A[Traveler text via ASI:One] --> B[SubQ Snap intake agent]
+    B --> C[SubQ Snap planner agent]
+    C --> D[Gemini 4 Argon verifier]
+    D -->|REJECT, max 3 loops| C
+    D -->|PASS, or 3rd rejection escalates| E[Human approval gate]
+    E -->|rejected| X[Stop, logged]
+    E -->|approved| F{New money?}
+    F -->|yes| G[Locker room: Fetch.ai payment - Stripe test mode]
+    F -->|no| H[Fetch.ai vendor agents]
+    G --> H
+    H --> I[Reply via ASI:One]
+    B -.-> M[(MongoDB: requests, candidates, plans, verdicts, run_log, ledger)]
+    C -.-> M
+    D -.-> M
+    E -.-> M
+    G -.-> M
+    H -.-> M
+```
+
+Every request, candidate set, plan, verdict, log line and ledger entry lands in MongoDB, so the whole run is auditable end to end.
+
+## Sponsor tech
+
+- **Fetch.ai (Agentverse + ASI:One)** - the agent framework. ASI:One carries the traveler conversation in and out; Fetch.ai uAgents run the payment step and the vendor booking step and talk over the Agent Chat Protocol and Agent Payment Protocol.
+- **SubQ Snap** - the intake and planner agents. Structured decision calls turn free text into a request and candidates into a plan.
+- **Google Gemini 4 Argon** - the verifier agent. Independent structured review of each plan against the stored request and candidates, returning a typed PASS/REJECT verdict.
+- **MongoDB Atlas** - the single source of truth. Collections: `requests`, `candidates`, `plans`, `verdicts`, `run_log`, `ledger`. Agents read and write state only here; the run log records what was checked, when, and the result.
+- **Stripe (test mode)** - payments inside the locker room. Test keys only; no real charges.
+
 ## Run it now (no keys needed)
 
 ```bash
@@ -27,6 +60,14 @@ What the verifier caught:
 To see the worst case (3 loops, then approval blocked), run `python run_local.py "Japan Nov 15-22, Tokyo then Osaka, budget $1,500"`.
 
 Copy `.env.example` to `.env` and fill in a key to switch that part to the real API. Empty keys stay on the mock.
+
+## Demo walkthrough
+
+1. `pip install -r requirements.txt`, then `python run_local.py` - the full flow on mock data: the planner proposes v1, the verifier catches cheaper equivalents, the plan is revised, and v2 passes.
+2. Show the rejection path: `python run_local.py "Japan Nov 15-22, Tokyo then Osaka, budget $1,500"` runs the worst case - 3 verify/replan loops, then approval is blocked and it escalates.
+3. Approve the passing plan at the human gate. The approval words are approve / confirm / book it / go ahead.
+4. Show the payment path: `python run_booking_local.py` exercises book → reschedule → extend → cancel, and `python run_booking_local.py tamper` shows the locker room refusing a vendor that overcharges by $500.
+5. Walk the audit trail in MongoDB: one request, its candidates, each plan version, every verdict, the run log, the ledger.
 
 ## Who owns what
 
@@ -122,3 +163,16 @@ tests/        test_p2_verifier.py · test_p3_inprocess.py
 - Agentverse: confirm a mailbox agent opens in "Chat with Agent". See the [chat protocol docs](https://docs.agentverse.ai/documentation/getting-started/enable-chat-protocol).
 
 All data is synthetic. Nothing books or charges anything real.
+
+## Limitations
+
+- Hackathon prototype built in one day. It proves the verify-before-execute loop; it is not a production travel product.
+- All data is synthetic and seeded; there is no live flight or hotel inventory, and nothing books or charges anything real.
+- Payments run on Stripe test mode only, inside the locker room's checks.
+- The approval gate is a single-operator surface, not a multi-user product.
+
+## Team
+
+- Ahmad Sultan
+- Bao
+- Chris D
