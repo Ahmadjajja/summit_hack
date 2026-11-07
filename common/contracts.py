@@ -22,6 +22,15 @@ class Signal(BaseModel):
 
 
 # ---- ① Intake → requests -------------------------------------------------
+DefaultableField = Literal["start", "end", "budget_usd", "cities"]
+
+
+class Prefs(BaseModel):
+    """Traveller preferences. Stored in Mongo as the same plain object as before."""
+    pace: Literal["relaxed", "packed"] = "relaxed"
+    dining_style: Literal["local", "fine", "budget"] = "local"
+
+
 class TripRequest(BaseModel):
     trip_id: str
     raw_text: str
@@ -31,9 +40,10 @@ class TripRequest(BaseModel):
     end: str                        # YYYY-MM-DD
     budget_usd: float
     events: list[str] = []          # event IDs
-    prefs: dict = {}                # pace, dining_style, budget_tier ...
+    prefs: Prefs = Prefs()
     target_booking: Optional[str] = None   # for cancel / reschedule / extend
     intake_confidence: dict = {}    # SubQ confidence per question
+    defaults_used: list[DefaultableField] = []  # values the user never stated (intake filled a default)
 
 
 # ---- ② Planner → plans ---------------------------------------------------
