@@ -1,0 +1,9 @@
+pydantic>=2.6
+pymongo>=4.6
+mongomock>=4.1        # local fallback when MONGODB_URI is empty
+requests>=2.31
+python-dotenv>=1.0
+google-genai>=1.0     # P2: Gemini verifier
+uagents>=0.22         # P1/P3: ASI:One orchestrator + Fetch agents (check version against Agentverse docs)
+uagents-core>=0.3
+stripe>=8.0           # P3: locker room, TEST keys only

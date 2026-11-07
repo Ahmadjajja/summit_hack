@@ -141,12 +141,17 @@ tr.tot td{font-weight:600;background:var(--bg)}
 .ct pre{margin:0;font-family:var(--mono);font-size:12px;line-height:1.5;background:var(--bg);border-top:1px solid var(--line);padding:14px 16px;overflow-x:auto;white-space:pre;flex:1}
 .ct pre .c{color:var(--muted)}
 
+.rules3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.r3{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.r3 p{font-size:14px;color:var(--ink-2)}
+@media (max-width:760px){.rules3{grid-template-columns:1fr}}
 /* misc */
 .agents{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .ag{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:6px;min-width:0}
 .ag p{font-size:13.5px;color:var(--ink-2)}
 .ag code{font-size:12px;color:var(--fetch)}
 .team{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.team.team3{grid-template-columns:repeat(3,1fr)}
 .tm{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:8px;min-width:0}
 .tm ul{margin:0;padding-left:18px;font-size:13.5px;color:var(--ink-2);display:flex;flex-direction:column;gap:3px}
 .tm .who{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
@@ -163,11 +168,11 @@ footer{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:
 footer a{color:var(--muted)}
 
 @media (max-width:900px){
-  .agents,.team{grid-template-columns:1fr 1fr}
+  .agents,.team,.team.team3{grid-template-columns:1fr 1fr}
   .contracts,.ask{grid-template-columns:1fr}
 }
 @media (max-width:640px){
-  .finds,.agents,.team{grid-template-columns:1fr}
+  .finds,.agents,.team,.team.team3{grid-template-columns:1fr}
   .clock li{grid-template-columns:1fr;gap:2px}
 }
 </style>
@@ -442,6 +447,18 @@ footer a{color:var(--muted)}
   <p class="note">Sending a signal: the simplest version is the orchestrator calling the next step with <code>{trip_id, version}</code> right after the write succeeds. An option for later is for each step to watch MongoDB change streams on a <code>status</code> field.</p>
 </section>
 
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Loop rule</div>
+    <h2>At most 3 loops, then we answer</h2>
+  </div>
+  <div class="rules3">
+    <div class="r3"><span class="tag good">PASS on any loop</span><p>Go straight to the human gate. Remaining loops are skipped.</p></div>
+    <div class="r3"><span class="tag bad">REJECT, loop 1 or 2</span><p>Planner makes the next version using the verdict: rejected picks are excluded, replacements suggested.</p></div>
+    <div class="r3"><span class="tag warn">REJECT on loop 3</span><p>Stop. Show the best version: fewest hard failures, then lowest cost, with the open issues. Hard failure: can't approve. Soft issues only: can approve.</p></div>
+  </div>
+</section>
+
 <section class="steps">
   <div class="sec-head">
     <div class="eyebrow">Step contract</div>
@@ -585,14 +602,14 @@ footer a{color:var(--muted)}
 <section>
   <div class="sec-head">
     <div class="eyebrow">Team split</div>
-    <h2>Four people, parallel from minute 15</h2>
+    <h2>Three people, parallel from minute 15</h2>
   </div>
-  <div class="team">
-    <div class="tm"><span class="who">Person A</span><h3>Agents + chat</h3><ul><li>Orchestrator with chat protocol, mailbox, ASI:One working</li><li>Step routing + approve message</li><li>Final scoreboard message</li></ul></div>
-    <div class="tm"><span class="who">Person B</span><h3>Data + execution</h3><ul><li>MongoDB seed: Japan flights, hotels with policies, dining, events</li><li>Flight, Hotel and Dining vendor agents</li><li>Locker room with Stripe sandbox</li></ul></div>
-    <div class="tm"><span class="who">Person C</span><h3>SubQ</h3><ul><li>Intake questions + date parser</li><li>Planner: slot → choice questions over candidates</li><li>PlanPackage assembly + metrics</li></ul></div>
-    <div class="tm"><span class="who">Person D</span><h3>Gemini verifier</h3><ul><li>Python checks (budget, overlap, alignment, refund)</li><li>Argon prompt + Verdict JSON schema</li><li>Run log + cost calculation</li></ul></div>
+  <div class="team team3">
+    <div class="tm"><span class="who">P1</span><h3>ASI:One agent + Intake + Planner</h3><ul><li>Orchestrator uAgent: chat protocol, mailbox, "Chat with Agent" working</li><li>① SubQ intake: questions + date parser → <code>requests</code></li><li>② SubQ planner: one choice question per slot → <code>plans</code> vN</li><li>The loop: <code>orchestrator/pipeline.py</code></li></ul></div>
+    <div class="tm"><span class="who">P2</span><h3>Verifier + Human gate</h3><ul><li>③ Python rules + Gemini 4 Argon review → <code>verdicts</code> vN</li><li>REJECT → replan, PASS → gate, max 3 loops</li><li>④ Approval message + scoreboard, plan hash, "approve"</li></ul></div>
+    <div class="tm"><span class="who">P3</span><h3>Locker room + Fetch agents</h3><ul><li>⑤ Locker room: Fetch payment protocol, Stripe test, exact amount, hash check</li><li>⑥ Flight, hotel and dining vendor uAgents</li><li>Writes to the <code>ledger</code>, reply to chat</li></ul></div>
   </div>
+  <p class="note">Code starter: <code>github.com/Ahmadjajja/summit_hack</code>. Run <code>python run_local.py</code> to see the full loop on mock data, then replace your part's mock with the real API. Shared contracts are in <code>common/</code>.</p>
   <ol class="clock">
     <li><span class="t">0:00 – 0:15</span><span>Confirm SubQ model ID, Argon access, and a hello-world ASI:One chat. Freeze PlanPackage and Verdict.</span></li>
     <li><span class="t">0:15 – 1:30</span><span>Build in parallel. Each person tests their part with a fake input in the agreed JSON.</span></li>
