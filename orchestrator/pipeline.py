@@ -18,7 +18,7 @@ from verifier.verifier import run_verifier
 
 @on("ready")
 def _ready(s: Signal):
-    return run_planner(Signal(type="replan", trip_id=s.trip_id, version=1))
+    return run_planner(Signal(type="replan", trip_id=s.trip_id, version=s.version or 1))
 
 
 @on("replan")
@@ -48,7 +48,9 @@ def plan_trip(trip_id: str, raw_text: str, trace=print) -> tuple[str, int]:
     while sig.type not in ("pass", "max_loops"):
         sig = dispatch(sig)
         trace(log(sig))
-    return gate.build_message(sig)
+    from common.db import requests_col
+    first = (requests_col().find_one({"trip_id": trip_id}) or {}).get("first_version", 1)
+    return gate.build_message(sig, first_version=first)
 
 
 def approve_and_execute(trip_id: str, version: int, user_text: str, trace=print) -> str:

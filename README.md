@@ -39,6 +39,17 @@ Copy `.env.example` to `.env` and fill in a key to switch that part to the real 
 
 **Rule:** keep your function signatures and the shapes in `common/contracts.py`. Then everyone's parts keep working together.
 
+## P2: Verifier + human gate
+
+- **`verifier/checks.py`** holds the deterministic rules R-01, R-04, R-05, R-09, R-12, R-13, R-14 and R-20 (see `SPEC.md` §4). They run on book plans and on change plans; for a change, they check the trip as it will be after the change.
+- **`verifier/verifier.py`** adds the Gemini 4 Argon review (JSON schema, thinking level, token and cost logging). Replacements Gemini makes up are dropped. If Gemini is unavailable, the verdict is rules-only. Decision: REJECT on a hard issue or a fixable soft issue, otherwise PASS with heads-ups.
+- **`gate/gate.py`** builds the approval message. For change plans it shows what changes, refunds to your card, and "You pay now". The approval words are approve / confirm / book it / go ahead, and "approve the cancel" counts. A plan can't be approved if it has a hard failure, has no verdict, or was already approved.
+
+```bash
+python -m tests.test_p2_verifier     # 25 checks, offline
+MOCK=subq python run_local.py        # same flow with real Gemini 4 Argon (needs GEMINI_API_KEY)
+```
+
 ## P3: Booking agents on Fetch.ai (locker room + vendors)
 
 Five uAgents. Payments use Fetch.ai's standard **Agent Payment Protocol** (`uagents_core.contrib.protocols.payment`):
@@ -101,7 +112,7 @@ vendors/       ⑥ vendors.py (book/modify/cancel → ledger) · policy.py (refu
 orchestrator/  pipeline.py (the loop) · agent.py (ASI:One chat agent)
 run_local.py   end-to-end run with mocks (in-process)
 run_booking_local.py  P3 test: real uAgents + payment protocol, offline
-tests/        test_p3_inprocess.py
+tests/        test_p2_verifier.py · test_p3_inprocess.py
 ```
 
 ## Check first (15 min)

@@ -34,6 +34,7 @@ class TripRequest(BaseModel):
     prefs: dict = {}                # pace, dining_style, budget_tier ...
     target_booking: Optional[str] = None   # for cancel / reschedule / extend
     intake_confidence: dict = {}    # SubQ confidence per question
+    first_version: int = 1          # plan version this request's loop starts at (changes continue numbering)
 
 
 # ---- ② Planner → plans ---------------------------------------------------
@@ -102,6 +103,8 @@ class Verdict(BaseModel):
     replace: dict[str, str] = {}    # slot -> candidate id
     hard_failures: int = 0
     soft_failures: int = 0
+    summary: str = ""               # verifier's one-paragraph review (Gemini), shown at the gate
+    reviewer: str = ""              # model that reviewed, or "rules-only (reason)"
 
 
 # ---- every step → run_log ------------------------------------------------

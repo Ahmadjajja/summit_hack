@@ -29,6 +29,9 @@ SUBQ_MODEL = _s("SUBQ_MODEL") or _s("DECISION_MODEL", "subq-snap-1.1")
 
 GEMINI_API_KEY = _s("GEMINI_API_KEY")
 GEMINI_MODEL = _s("GEMINI_MODEL") or _s("VERIFIER_MODEL", "gemini-4-argon")
+# low | medium | high | off. Higher = more careful but slower (medium ≈ 18s per call vs ≈ 5s off).
+VERIFIER_THINKING_LEVEL = _s("VERIFIER_THINKING_LEVEL", "low").lower()
+VERIFIER_TIMEOUT_S = _f("VERIFIER_TIMEOUT_S", 60)
 
 AGENT_SEED_PHRASE = _s("AGENT_SEED_PHRASE", "tripcheck-orchestrator-dev-seed")
 STRIPE_TEST_KEY = _s("STRIPE_TEST_KEY")

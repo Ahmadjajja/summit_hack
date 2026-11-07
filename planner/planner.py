@@ -31,7 +31,8 @@ def _load(trip_id: str, version: int):
                           {"check_in": {"$gte": req.start, "$lte": req.end}}]}],
     })]
     excluded, hints = [], {}
-    for v in verdicts_col().find({"trip_id": trip_id, "version": {"$lt": version}}):
+    for v in verdicts_col().find({"trip_id": trip_id,
+                                  "version": {"$gte": req.first_version, "$lt": version}}):
         if any(i["rule"].startswith("R-01") for i in v.get("issues", [])):
             hints["_over_budget"] = True
         prev = plans_col().find_one({"trip_id": trip_id, "version": v["version"]})

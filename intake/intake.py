@@ -97,5 +97,8 @@ def run_intake(trip_id: str, raw_text: str, default_budget: float = 3500.0) -> S
     req.events = [e["id"] for e in get_db()["events"].find(
         {"city": {"$in": req.cities}, "date": {"$gte": req.start, "$lte": req.end}})]
 
+    from common.db import plans_col
+    last = plans_col().find_one({"trip_id": trip_id}, sort=[("version", -1)])
+    req.first_version = (last["version"] + 1) if last else 1   # never overwrite earlier plans
     requests_col().replace_one({"trip_id": trip_id}, req.model_dump(), upsert=True)
-    return Signal(type="ready", trip_id=trip_id)
+    return Signal(type="ready", trip_id=trip_id, version=req.first_version)

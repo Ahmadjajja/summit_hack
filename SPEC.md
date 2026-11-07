@@ -92,16 +92,26 @@ loop:
 
 ### Verifier rules (Python, deterministic)
 
+Rules check the trip **as it will be after the plan runs**. For a book plan that's the picks. For a change plan, it's the active bookings with the actions applied.
+
 | Rule | Severity | Check |
 |---|---|---|
-| `R-01 budget` | hard | plan total ≤ budget |
-| `R-04 events_covered` | hard | you're in the event's city on the event's date |
-| `R-05 no_overlap` | hard | no night has two hotels, and no night is uncovered between arrival and departure |
-| `R-09 flight_matches_dates` | hard | outbound date = trip start, return date = trip end |
-| `R-12 refund_matches_policy` | hard | cancel refund = policy math |
-| `R-20 cheaper_equivalent` | soft | the same slot has an option ≥10% cheaper, same date, departure within 90 min (flights) or same area and rating within 0.2 (hotels) |
+| `R-01 budget` | hard (soft for changes) | trip total ≤ budget |
+| `R-04 events_covered` | hard* | you're in the event's city on the event's date |
+| `R-05 no_overlap` | hard* | every night between the flights has exactly one hotel |
+| `R-09 flights_match_hotels` | hard* | outbound = first check-in, return = last check-out (book plans: also = requested dates) |
+| `R-12 refund_matches_policy` | hard | a cancel's expected refund = vendor policy refund (`vendors/policy.py`) |
+| `R-13 change_price_matches` | hard | a change's price = vendor policy price |
+| `R-14 targets_exist` | hard | changed/cancelled bookings are active on this trip; new items exist |
+| `R-20 cheaper_equivalent` | soft | the same slot has an option ≥10% cheaper, same date, departure within 90 min (flights) or same area and rating within 0.2 |
 
-Gemini adds a review on top: constraint fit against **your raw text**, low-confidence picks, anything the rules missed. Gemini issues are soft unless they map to a hard rule.
+\* Soft when the traveller asked to cancel. Gaps they asked for are shown as heads-ups, not blocks.
+
+**Decision:** REJECT if there's any hard issue, or any soft issue that comes with a concrete replacement. Otherwise PASS, and remaining soft issues are shown as heads-ups. This way no loop is spent on something the planner can't fix.
+
+**Loops are counted per request.** Intake stores `first_version`, and a change request continues the trip's version numbers (v1, v2 for the booking; v3, v4… for a later change). The 3-loop limit counts from `first_version`, and earlier plans are never overwritten.
+
+Gemini 4 Argon adds a review on top: fit with **your raw text**, low-confidence picks, anything the rules missed. Its issues are always soft. A replacement it suggests is kept only if it's a real candidate in the same slot; otherwise the note stays and the fix is dropped. If Gemini is down, the verdict is rules-only and says so. `VERIFIER_THINKING_LEVEL` = off | low | medium | high. With medium, a call took about 6–8 s and cost about $0.008 in testing.
 
 ---
 
