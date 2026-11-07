@@ -48,9 +48,19 @@ class SlotPick(BaseModel):
 
 
 class Action(BaseModel):
+    """One thing the vendors must do.
+
+    book   id = candidate id         cost_usd = price (> 0)
+    modify id = existing booking id  cost_usd = extra to pay (>= 0), params = changes
+           hotel:  {"new_check_in": "YYYY-MM-DD", "new_check_out": "YYYY-MM-DD"}
+           flight: {"new_date": "YYYY-MM-DD", "new_flight": "FLT-…"}
+    cancel id = existing booking id  cost_usd = -expected refund (<= 0)
+    Build change actions with vendors/policy.py so prices follow vendor policy.
+    """
     op: Literal["book", "cancel", "modify"]
     id: str
     cost_usd: float = 0.0
+    params: dict = {}
 
 
 class PlanPackage(BaseModel):

@@ -39,6 +39,9 @@ BOOKING_DRY_RUN = _s("BOOKING_DRY_RUN", "true").lower() != "false"
 # true = register agents on Agentverse with a mailbox (run on a laptop with internet)
 AGENTS_USE_MAILBOX = _s("AGENTS_USE_MAILBOX", "false").lower() == "true"
 
+# Pretend "now" for mid-trip demos, e.g. 2026-11-18T10:00:00 (empty = real time)
+DEMO_NOW = _s("DEMO_NOW")
+
 MAX_LOOPS = int(_f("MAX_LOOPS", _f("MAX_REPAIR_ROUNDS", 3)))
 
 SUBQ_PRICE_IN_PER_M = _f("SUBQ_PRICE_IN_PER_M", 0.05)

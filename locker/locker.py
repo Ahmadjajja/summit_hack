@@ -6,7 +6,8 @@ is checked against the approved plan in MongoDB, never against the request:
   1. the plan is approved and its hash matches (stored hash == recomputed hash)
   2. the items belong to that plan and to the vendor asking
   3. the amount equals the plan's cost for those items
-  4. total paid for this plan never exceeds plan.money_delta_usd
+  4. total paid for this plan never exceeds what the plan pays out
+     (sum of book + paid modify actions)
   5. the same vendor+plan is never charged twice (idempotent)
 
 Two ways in:
@@ -79,7 +80,7 @@ def authorize_and_charge(trip_id: str, version: int, claimed_hash: str | None, v
         return clean(existing)  # idempotent: same request, same payment
 
     plan = _approved_plan(trip_id, version, claimed_hash)
-    costs = {a.id: a.cost_usd for a in plan.actions if a.op == "book"}
+    costs = _payable(plan)
     unknown = [i for i in item_ids if i not in costs]
     if unknown:
         raise LockerRefused(f"items not in the approved plan: {unknown}")
@@ -89,7 +90,7 @@ def authorize_and_charge(trip_id: str, version: int, claimed_hash: str | None, v
     expected = round(sum(costs[i] for i in item_ids), 2)
     if abs(expected - amount_usd) > TOLERANCE_USD:
         raise LockerRefused(f"amount ${amount_usd:,.2f} does not match approved ${expected:,.2f}")
-    if _paid_so_far(trip_id, version) + amount_usd > plan.money_delta_usd + TOLERANCE_USD:
+    if _paid_so_far(trip_id, version) + amount_usd > sum(costs.values()) + TOLERANCE_USD:
         raise LockerRefused("payment would exceed the approved total")
 
     with track(trip_id, "locker", "mock-payment" if config.BOOKING_DRY_RUN else "stripe-test",
@@ -105,6 +106,23 @@ def authorize_and_charge(trip_id: str, version: int, claimed_hash: str | None, v
     return rec
 
 
+def _payable(plan: PlanPackage) -> dict[str, float]:
+    """Items that need money OUT: books, and modifies that cost extra."""
+    return {a.id: a.cost_usd for a in plan.actions if a.op in ("book", "modify") and a.cost_usd > 0}
+
+
+def refund_to_card(payment_ids: list[str], amount_usd: float, trip_id: str) -> str:
+    """Refund to the original card. The locker room holds the payment keys, so
+    refunds go through here too. Dry run: a mock refund reference."""
+    real = [p for p in payment_ids if p and p.startswith("pi_")]
+    if real and config.STRIPE_TEST_KEY and not config.BOOKING_DRY_RUN:
+        import stripe
+        stripe.api_key = config.STRIPE_TEST_KEY
+        return stripe.Refund.create(payment_intent=real[-1], amount=int(round(amount_usd * 100)),
+                                    metadata={"trip_id": trip_id}).id
+    return f"re_mock_{uuid.uuid4().hex[:10]}"
+
+
 def mark_payment(payment_id: str, status: str) -> None:
     ledger_col().update_one({"type": "payment", "payment_id": payment_id}, {"$set": {"status": status}})
 
@@ -112,13 +130,12 @@ def mark_payment(payment_id: str, status: str) -> None:
 def run_locker(signal: Signal) -> Signal:
     """In-process path (run_local.py): pay the plan's whole money_delta at once."""
     plan = _approved_plan(signal.trip_id, signal.version, signal.plan_hash)
-    if plan.money_delta_usd <= 0:
+    costs = _payable(plan)
+    if not costs:
         raise LockerRefused("no new money needed; locker room should not have been called")
-    items = [a.id for a in plan.actions if a.op == "book"]
     by_vendor: dict[str, list[str]] = {}
-    for i in items:
+    for i in costs:
         by_vendor.setdefault(vendor_for(i), []).append(i)
-    costs = {a.id: a.cost_usd for a in plan.actions}
     last = None
     for vendor, ids in by_vendor.items():
         last = authorize_and_charge(signal.trip_id, signal.version, signal.plan_hash, vendor, ids,

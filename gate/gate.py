@@ -64,12 +64,12 @@ def approve(trip_id: str, version: int, user_text: str) -> Signal | None:
     if "approve" not in user_text.lower():
         return None
     verdict = verdicts_col().find_one({"trip_id": trip_id, "version": version})
-    if verdict["hard_failures"]:
+    if not verdict or verdict["hard_failures"]:   # never approve an unverified or failing plan
         return None
     plan = PlanPackage(**clean(plans_col().find_one({"trip_id": trip_id, "version": version})))
     h = plan_hash(plan)
     plans_col().update_one({"trip_id": trip_id, "version": version},
                            {"$set": {"approved": True, "plan_hash": h}})
-    if plan.money_delta_usd > 0:
+    if any(a.op in ("book", "modify") and a.cost_usd > 0 for a in plan.actions):
         return Signal(type="pay", trip_id=trip_id, version=version, plan_hash=h)
     return Signal(type="execute", trip_id=trip_id, version=version)

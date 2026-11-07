@@ -27,6 +27,11 @@ CANDIDATES = [
      "from": "Osaka", "to": "SFO", "dep": "14:00", "airline": "Sky Nippon", "price_usd": 850, "convenience": 0.90},
     {"id": "FLT-2140", "kind": "flight", "slot": "flight_ret", "date": "2026-11-22",
      "from": "Osaka", "to": "SFO", "dep": "10:00", "airline": "Pacific Air", "price_usd": 1000, "convenience": 0.60},
+    # later return options, used by reschedule / extend
+    {"id": "FLT-2190", "kind": "flight", "slot": "flight_ret", "date": "2026-11-24",
+     "from": "Osaka", "to": "SFO", "dep": "13:00", "airline": "Sky Nippon", "price_usd": 870, "convenience": 0.0},
+    {"id": "FLT-2195", "kind": "flight", "slot": "flight_ret", "date": "2026-11-25",
+     "from": "Osaka", "to": "SFO", "dep": "14:30", "airline": "Sky Nippon", "price_usd": 840, "convenience": 0.0},
     # Tokyo hotels, Nov 15 → 19 (4 nights)
     {"id": "HTL-2210", "kind": "hotel", "slot": "hotel_tokyo", "city": "Tokyo", "area": "Shinjuku",
      "check_in": "2026-11-15", "check_out": "2026-11-19", "nightly_usd": 180, "rating": 4.4, "convenience": 0.90,
