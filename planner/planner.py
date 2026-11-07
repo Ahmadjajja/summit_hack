@@ -25,11 +25,13 @@ def candidate_cost(c: dict) -> float:
 
 def _load(trip_id: str, version: int):
     req = TripRequest(**clean(requests_col().find_one({"trip_id": trip_id})))
-    cands = [clean(c) for c in candidates_col().find({
-        "$or": [{"city": {"$in": req.cities}}, {"kind": "flight"}],
-        "$and": [{"$or": [{"date": {"$gte": req.start, "$lte": req.end}},
-                          {"check_in": {"$gte": req.start, "$lte": req.end}}]}],
-    })]
+    cands = [clean(c) for c in candidates_col().find({"$and": [
+        {"kind": {"$ne": "restaurant"}},                       # restaurants are suggestions, not slots
+        {"$or": [{"kind": {"$ne": "flight"}, "city": {"$in": req.cities}},
+                 {"kind": "flight", "$or": [{"to": {"$in": req.cities}}, {"from": {"$in": req.cities}}]}]},
+        {"$or": [{"date": {"$gte": req.start, "$lte": req.end}},
+                 {"check_in": {"$gte": req.start, "$lte": req.end}}]},
+    ]})]
     excluded, hints = [], {}
     for v in verdicts_col().find({"trip_id": trip_id,
                                   "version": {"$gte": req.first_version, "$lt": version}}):
@@ -45,6 +47,9 @@ def _load(trip_id: str, version: int):
                     excluded.append(picked)
         hints.update(v.get("replace", {}))
     return req, cands, sorted(set(excluded)), hints
+
+
+CHEAP_WORDS = ("cheap", "cheapest", "budget", "student", "affordable", "lowest price")
 
 
 def _mock_pick(slot: str, options: list[dict], over_budget: bool = False) -> dict:
@@ -101,7 +106,8 @@ def run_planner(signal: Signal) -> Signal:
     model = "mock-subq" if config.USE_MOCK_SUBQ else config.SUBQ_MODEL
     with track(trip_id, "planner", model, loop=version, version=version) as m:
         if config.USE_MOCK_SUBQ:
-            answers = {s: _mock_pick(s, opts, hints.get("_over_budget", False)) for s, opts in by_slot.items()}
+            cheap = hints.get("_over_budget", False) or any(w in req.raw_text.lower() for w in CHEAP_WORDS)
+            answers = {s: _mock_pick(s, opts, cheap) for s, opts in by_slot.items()}
             m.tokens(estimate_tokens(json.dumps(by_slot)))
         else:
             answers, toks = _subq_pick(req, by_slot, hints)

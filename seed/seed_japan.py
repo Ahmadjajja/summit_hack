@@ -9,6 +9,54 @@ Run:  python -m seed.seed_japan
 """
 from common.db import candidates_col, get_db
 
+# Los Angeles demo data. Synthetic businesses (made-up names), real neighbourhoods and
+# coordinates, realistic student-budget prices. `safety` is a 0-5 neighbourhood/guest score.
+LA_EVENTS = [
+    {"id": "EVT-LA1", "name": "Hollywood sightseeing day", "city": "Los Angeles", "date": "2026-11-16"},
+]
+LA_CANDIDATES = [
+    # SFO → LAX, Nov 15
+    {"id": "FLT-LA10", "kind": "flight", "slot": "flight_out", "date": "2026-11-15", "from": "SFO",
+     "to": "Los Angeles", "dep": "06:00", "airline": "Coastal Air", "price_usd": 129, "convenience": 0.50},
+    {"id": "FLT-LA11", "kind": "flight", "slot": "flight_out", "date": "2026-11-15", "from": "SFO",
+     "to": "Los Angeles", "dep": "11:00", "airline": "BayJet", "price_usd": 89, "convenience": 0.80},
+    {"id": "FLT-LA12", "kind": "flight", "slot": "flight_out", "date": "2026-11-15", "from": "SFO",
+     "to": "Los Angeles", "dep": "12:00", "airline": "Coastal Air", "price_usd": 149, "convenience": 0.90},
+    # LAX → SFO, Nov 20
+    {"id": "FLT-LA20", "kind": "flight", "slot": "flight_ret", "date": "2026-11-20", "from": "Los Angeles",
+     "to": "SFO", "dep": "18:00", "airline": "BayJet", "price_usd": 79, "convenience": 0.80},
+    {"id": "FLT-LA21", "kind": "flight", "slot": "flight_ret", "date": "2026-11-20", "from": "Los Angeles",
+     "to": "SFO", "dep": "10:00", "airline": "Coastal Air", "price_usd": 119, "convenience": 0.60},
+    # hotels, Nov 15 → 20 (5 nights)
+    {"id": "HTL-LA01", "kind": "hotel", "slot": "hotel_la", "city": "Los Angeles", "area": "Hollywood",
+     "name": "Hollywood Budget Inn", "check_in": "2026-11-15", "check_out": "2026-11-20", "nightly_usd": 65,
+     "rating": 3.4, "safety": 2.9, "lat": 34.1010, "lon": -118.3380, "convenience": 0.85,
+     "policy": {"free_cancel_hours": 24, "penalty_nights": 1}},
+    {"id": "HTL-LA02", "kind": "hotel", "slot": "hotel_la", "city": "Los Angeles", "area": "Hollywood",
+     "name": "Sunset Student Hostel (private room)", "check_in": "2026-11-15", "check_out": "2026-11-20",
+     "nightly_usd": 72, "rating": 4.1, "safety": 4.3, "lat": 34.0980, "lon": -118.3290, "convenience": 0.80,
+     "policy": {"free_cancel_hours": 48, "penalty_nights": 1}},
+    {"id": "HTL-LA03", "kind": "hotel", "slot": "hotel_la", "city": "Los Angeles", "area": "Koreatown",
+     "name": "Koreatown Value Hotel", "check_in": "2026-11-15", "check_out": "2026-11-20", "nightly_usd": 95,
+     "rating": 4.2, "safety": 4.0, "lat": 34.0614, "lon": -118.3005, "convenience": 0.60,
+     "policy": {"free_cancel_hours": 48, "penalty_nights": 1}},
+    {"id": "HTL-LA04", "kind": "hotel", "slot": "hotel_la", "city": "Los Angeles", "area": "Hollywood",
+     "name": "Hollywood Boulevard Suites", "check_in": "2026-11-15", "check_out": "2026-11-20",
+     "nightly_usd": 210, "rating": 4.6, "safety": 4.6, "lat": 34.1017, "lon": -118.3400, "convenience": 0.95,
+     "policy": {"free_cancel_hours": 72, "penalty_nights": 1}},
+    # Desi halal restaurants: suggestions shown with the plan (not booked)
+    {"id": "RST-LA1", "kind": "restaurant", "city": "Los Angeles", "area": "Hollywood", "cuisine": "Desi halal",
+     "name": "Lahore Grill Hollywood", "price": "$", "rating": 4.5, "lat": 34.0983, "lon": -118.3262},
+    {"id": "RST-LA2", "kind": "restaurant", "city": "Los Angeles", "area": "Hollywood", "cuisine": "Desi halal",
+     "name": "Halal Tandoor Express", "price": "$", "rating": 4.2, "lat": 34.1010, "lon": -118.3440},
+    {"id": "RST-LA3", "kind": "restaurant", "city": "Los Angeles", "area": "East Hollywood", "cuisine": "Desi halal",
+     "name": "Desi Dhaba Sunset", "price": "$", "rating": 4.4, "lat": 34.0905, "lon": -118.3090},
+    {"id": "RST-LA4", "kind": "restaurant", "city": "Los Angeles", "area": "Koreatown", "cuisine": "Desi halal",
+     "name": "Karachi Kitchen", "price": "$$", "rating": 4.6, "lat": 34.0600, "lon": -118.3010},
+    {"id": "RST-LA5", "kind": "restaurant", "city": "Los Angeles", "area": "Koreatown", "cuisine": "Desi halal",
+     "name": "Biryani House LA", "price": "$", "rating": 4.3, "lat": 34.0635, "lon": -118.2920},
+]
+
 EVENTS = [
     {"id": "EVT-1", "name": "AI Builders Tokyo", "city": "Tokyo", "date": "2026-11-17"},
     {"id": "EVT-2", "name": "Osaka Dev Summit", "city": "Osaka", "date": "2026-11-20"},
@@ -67,9 +115,9 @@ def seed(reset: bool = True) -> None:
     if reset:
         db["candidates"].delete_many({})
         db["events"].delete_many({})
-    for c in CANDIDATES:  # upsert by id: safe to run repeatedly against Atlas
+    for c in CANDIDATES + LA_CANDIDATES:  # upsert by id: safe to run repeatedly against Atlas
         candidates_col().replace_one({"id": c["id"]}, dict(c), upsert=True)
-    for e in EVENTS:
+    for e in EVENTS + LA_EVENTS:
         db["events"].replace_one({"id": e["id"]}, dict(e), upsert=True)
 
 
