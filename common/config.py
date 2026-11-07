@@ -18,23 +18,34 @@ def _s(name: str, default: str = "") -> str:
 
 
 MONGODB_URI = _s("MONGODB_URI")
+if MONGODB_URI and not MONGODB_URI.startswith(("mongodb://", "mongodb+srv://")):
+    print("[config] MONGODB_URI is not a mongodb:// or mongodb+srv:// URI; using in-memory DB instead.")
+    MONGODB_URI = ""
 MONGODB_DB = _s("MONGODB_DB", "tripcheck")
 
 SUBQ_API_KEY = _s("SUBQ_API_KEY")
 SUBQ_BASE_URL = _s("SUBQ_BASE_URL", "https://api.subq.ai/v1")
-SUBQ_MODEL = _s("SUBQ_MODEL", "subq-snap-1.1")
+SUBQ_MODEL = _s("SUBQ_MODEL") or _s("DECISION_MODEL", "subq-snap-1.1")
 
 GEMINI_API_KEY = _s("GEMINI_API_KEY")
-GEMINI_MODEL = _s("GEMINI_MODEL", "gemini-4-argon")
+GEMINI_MODEL = _s("GEMINI_MODEL") or _s("VERIFIER_MODEL", "gemini-4-argon")
 
 AGENT_SEED_PHRASE = _s("AGENT_SEED_PHRASE", "tripcheck-orchestrator-dev-seed")
 STRIPE_TEST_KEY = _s("STRIPE_TEST_KEY")
+AGENTVERSE_API_KEY = _s("AGENTVERSE_API_KEY")
+ASI_ONE_API_KEY = _s("ASI_ONE_API_KEY")
+# true = never charge anything real; payments are mock records (Stripe test still allowed if set)
+BOOKING_DRY_RUN = _s("BOOKING_DRY_RUN", "true").lower() != "false"
+# true = register agents on Agentverse with a mailbox (run on a laptop with internet)
+AGENTS_USE_MAILBOX = _s("AGENTS_USE_MAILBOX", "false").lower() == "true"
 
-MAX_LOOPS = int(_f("MAX_LOOPS", 3))
+MAX_LOOPS = int(_f("MAX_LOOPS", _f("MAX_REPAIR_ROUNDS", 3)))
 
 SUBQ_PRICE_IN_PER_M = _f("SUBQ_PRICE_IN_PER_M", 0.05)
 GEMINI_PRICE_IN_PER_M = _f("GEMINI_PRICE_IN_PER_M", 2.00)
 GEMINI_PRICE_OUT_PER_M = _f("GEMINI_PRICE_OUT_PER_M", 10.00)
 
-USE_MOCK_SUBQ = not SUBQ_API_KEY
-USE_MOCK_GEMINI = not GEMINI_API_KEY
+# MOCK=subq,gemini forces mocks even when keys are set (handy offline or to save credits)
+_FORCE_MOCK = {x.strip().lower() for x in _s("MOCK").split(",") if x.strip()}
+USE_MOCK_SUBQ = not SUBQ_API_KEY or "subq" in _FORCE_MOCK
+USE_MOCK_GEMINI = not GEMINI_API_KEY or "gemini" in _FORCE_MOCK

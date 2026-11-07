@@ -39,6 +39,39 @@ Copy `.env.example` to `.env` and fill in a key to switch that part to the real 
 
 **Rule:** keep your function signatures and the shapes in `common/contracts.py`. Then everyone's parts keep working together.
 
+## P3: Booking agents on Fetch.ai (locker room + vendors)
+
+Five uAgents. Payments use Fetch.ai's standard **Agent Payment Protocol** (`uagents_core.contrib.protocols.payment`):
+
+```
+orchestrator ──ExecutePlan──▶ coordinator ──VendorOrder──▶ flight / hotel / dining vendor
+                                                              │ RequestPayment ▼
+                                                          locker room: checks the approved plan in MongoDB
+                                                              │ CommitPayment / RejectPayment ▲
+orchestrator ◀─PlanExecuted── coordinator ◀─VendorResult── vendor books → ledger → CompletePayment
+```
+
+The locker room pays a vendor only if the plan is approved, the plan hash matches, the items are in the plan and belong to that vendor, the amount equals the plan's cost for those items, and the total stays within `money_delta_usd`. Repeat requests are never charged twice.
+
+```bash
+python run_booking_local.py          # plan + approve, then the agents book it: pays $2,910 of $2,910
+python run_booking_local.py tamper   # hotel vendor overcharges by $500 → the locker room refuses
+python -m vendors.agents             # run the 5 agents; prints the coordinator address
+```
+
+**Interface for P1.** After the user says "approve" and `gate.approve()` has stored `plan_hash`, the orchestrator sends one message and gets one back. It does not send the ⚡ pay signal itself; vendors ask the locker room directly.
+
+```python
+from vendors.protocol import ExecutePlan, PlanExecuted
+await ctx.send(COORDINATOR_ADDRESS, ExecutePlan(trip_id=..., version=..., plan_hash=...))
+
+@agent.on_message(PlanExecuted)
+async def done(ctx, sender, m: PlanExecuted):
+    ...  # post m.summary to the ASI:One chat
+```
+
+To run everything in one process, add the orchestrator agent to the same `Bureau` as `vendors.agents.build_agents()`. Set `AGENTS_USE_MAILBOX=true` on a laptop with internet to register the agents on Agentverse.
+
 ## Layout
 
 ```
@@ -48,10 +81,11 @@ intake/        ① subq_client.py · intake.py
 planner/       ② planner.py
 verifier/      ③ checks.py (Python rules) · verifier.py (Gemini review + loop decision)
 gate/          ④ gate.py (approval message, scoreboard, plan hash)
-locker/        ⑤ locker.py (exact-amount payment, hash check)
-vendors/       ⑥ vendors.py (book/cancel → ledger) · agents.py (uAgent skeleton)
+locker/        ⑤ locker.py (payment checks + charge) · agent.py (locker room uAgent, payment protocol buyer)
+vendors/       ⑥ vendors.py (book/cancel → ledger) · agents.py (coordinator + vendor uAgents) · protocol.py (messages)
 orchestrator/  pipeline.py (the loop) · agent.py (ASI:One chat agent)
-run_local.py   end-to-end run with mocks
+run_local.py   end-to-end run with mocks (in-process)
+run_booking_local.py  P3 test: real uAgents + payment protocol, offline
 ```
 
 ## Check first (15 min)

@@ -62,8 +62,10 @@ def seed(reset: bool = True) -> None:
     if reset:
         db["candidates"].delete_many({})
         db["events"].delete_many({})
-    candidates_col().insert_many([dict(c) for c in CANDIDATES])
-    db["events"].insert_many([dict(e) for e in EVENTS])
+    for c in CANDIDATES:  # upsert by id: safe to run repeatedly against Atlas
+        candidates_col().replace_one({"id": c["id"]}, dict(c), upsert=True)
+    for e in EVENTS:
+        db["events"].replace_one({"id": e["id"]}, dict(e), upsert=True)
 
 
 if __name__ == "__main__":
