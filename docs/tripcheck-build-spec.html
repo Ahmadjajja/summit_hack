@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TripCheck Build Spec</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: locked build spec. Research findings first (they shape the design), then the diagram, the step contract, the data handed to the verifier, the cost/time scoreboard, change intents, team split. Same visual system as earlier versions. */
+:root{
+  --bg:#F3F6F6; --surface:#FFFFFF; --ink:#132022; --ink-2:#4A5A5D; --line:#D5DFE0; --muted:#7A8A8C;
+  --accent:#0E7C6B;
+  --user:#3B4A4D; --user-t:#E7ECED;
+  --gem:#1F63D6; --gem-t:#E3ECFB;
+  --subq:#B5650A; --subq-t:#FBEEDD;
+  --fetch:#B8285E; --fetch-t:#F9E3EB;
+  --mongo:#2F7D32; --mongo-t:#E2F1E2;
+  --bad:#B42318; --bad-t:#FDE7E4; --good:#1B7A3A; --good-t:#E0F3E6; --warn:#9A6700; --warn-t:#FFF4D6;
+  --display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0D1415; --surface:#152022; --ink:#E6EEEE; --ink-2:#A7B6B8; --line:#2A3A3C; --muted:#7D8F91;
+  --accent:#4FD1B8;
+  --user:#C3CFD1; --user-t:#1E2B2D;
+  --gem:#7EA9F5; --gem-t:#16243D;
+  --subq:#F0A54A; --subq-t:#33240F;
+  --fetch:#F27AA6; --fetch-t:#371A25;
+  --mongo:#7CCB7F; --mongo-t:#16301A;
+  --bad:#FF8A7A; --bad-t:#3A1A16; --good:#6FD49A; --good-t:#123222; --warn:#F2C14E; --warn-t:#33290F;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0D1415; --surface:#152022; --ink:#E6EEEE; --ink-2:#A7B6B8; --line:#2A3A3C; --muted:#7D8F91;
+  --accent:#4FD1B8;
+  --user:#C3CFD1; --user-t:#1E2B2D;
+  --gem:#7EA9F5; --gem-t:#16243D;
+  --subq:#F0A54A; --subq-t:#33240F;
+  --fetch:#F27AA6; --fetch-t:#371A25;
+  --mongo:#7CCB7F; --mongo-t:#16301A;
+  --bad:#FF8A7A; --bad-t:#3A1A16; --good:#6FD49A; --good-t:#123222; --warn:#F2C14E; --warn-t:#33290F;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:40px 64px}
+.wrap{max-width:1040px;margin:0 auto;display:flex;flex-direction:column;gap:56px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.1}
+h1{font-size:clamp(40px,7vw,64px);font-weight:800;letter-spacing:-.02em}
+h1 small{font-size:.42em;font-weight:500;color:var(--ink-2);letter-spacing:0;margin-left:.3em}
+h2{font-size:clamp(24px,3.4vw,30px);font-weight:700;letter-spacing:-.01em}
+h3{font-size:17px;font-weight:700}
+p{margin:0}
+a{color:var(--accent)}
+code{font-family:var(--mono);font-size:.92em}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.lede{font-size:clamp(17px,2.2vw,20px);max-width:64ch}
+.sub{color:var(--ink-2);max-width:70ch}
+header{display:flex;flex-direction:column;gap:16px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-family:var(--mono);font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid currentColor;background:var(--surface)}
+.c-gem{color:var(--gem)} .c-subq{color:var(--subq)} .c-fetch{color:var(--fetch)} .c-mongo{color:var(--mongo)}
+section{display:flex;flex-direction:column;gap:18px}
+.sec-head{display:flex;flex-direction:column;gap:6px}
+.tag{align-self:flex-start;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:4px;white-space:nowrap}
+.tag.bad{background:var(--bad-t);color:var(--bad)} .tag.good{background:var(--good-t);color:var(--good)} .tag.warn{background:var(--warn-t);color:var(--warn)}
+
+/* findings */
+.finds{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.f{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.f.alert{border-color:var(--warn);box-shadow:inset 3px 0 0 var(--warn)}
+.f p,.f li{font-size:14px;color:var(--ink-2)}
+.f ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:3px}
+.f .dec{font-size:14px;color:var(--ink);font-weight:500}
+.f .src{font-size:12px;font-family:var(--mono);color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 12px}
+
+/* diagram */
+.diagram{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow-x:auto;padding:12px}
+.diagram svg{display:block;min-width:820px;width:100%;height:auto}
+svg text{font-family:var(--body);fill:var(--ink)}
+svg .t-name{font-family:var(--display);font-weight:700;font-size:17px}
+svg .t-role{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+svg .t-desc{font-size:12.5px;fill:var(--ink-2)}
+svg .t-edge{font-family:var(--mono);font-size:11px;fill:var(--ink-2)}
+svg .t-edge-bad{font-family:var(--mono);font-size:11.5px;fill:var(--bad);font-weight:500}
+svg .t-edge-good{font-family:var(--mono);font-size:11px;fill:var(--good);font-weight:500}
+svg .t-edge-warn{font-family:var(--mono);font-size:11px;fill:var(--warn);font-weight:500}
+svg .t-edge-db{font-family:var(--mono);font-size:11px;fill:var(--mongo)}
+svg .t-meter{font-family:var(--mono);font-size:10.5px;fill:var(--ink-2)}
+svg .edge{stroke:var(--ink-2);stroke-width:1.6;fill:none}
+svg .edge-good{stroke:var(--good);stroke-width:1.8;fill:none}
+svg .edge-warn{stroke:var(--warn);stroke-width:1.6;fill:none}
+svg .edge-bad{stroke:var(--bad);stroke-width:1.6;fill:none;stroke-dasharray:5 4}
+svg .edge-db{stroke:var(--mongo);stroke-width:1.2;fill:none;stroke-dasharray:3 4}
+svg .ah{fill:var(--ink-2)} svg .ah-bad{fill:var(--bad)} svg .ah-good{fill:var(--good)} svg .ah-warn{fill:var(--warn)}
+.n-user{fill:var(--user-t);stroke:var(--user)} .n-gem{fill:var(--gem-t);stroke:var(--gem)} .n-subq{fill:var(--subq-t);stroke:var(--subq)}
+.n-fetch{fill:var(--fetch-t);stroke:var(--fetch)} .n-mongo{fill:var(--mongo-t);stroke:var(--mongo)} .n-dec{fill:var(--warn-t);stroke:var(--warn)}
+svg rect,svg polygon{stroke-width:1.6}
+.r-user{fill:var(--user)} .r-gem{fill:var(--gem)} .r-subq{fill:var(--subq)} .r-fetch{fill:var(--fetch)} .r-mongo{fill:var(--mongo)}
+.meter{fill:var(--surface);stroke:var(--line);stroke-width:1}
+.legend{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:8px}
+.sw{width:22px;height:0;border-top:2px solid var(--ink-2);display:inline-block}
+.sw.bad{border-top:2px dashed var(--bad)} .sw.db{border-top:2px dotted var(--mongo)} .sw.good{border-top:2px solid var(--good)} .sw.warn{border-top:2px solid var(--warn)}
+
+svg .edge-sig{stroke:var(--accent);stroke-width:1.8;fill:none;stroke-dasharray:6 3}
+svg .edge-db2{stroke:var(--mongo);stroke-width:1.6;fill:none}
+svg .ah-sig{fill:var(--accent)} svg .ah-db{fill:var(--mongo)}
+svg .t-edge-sig{font-family:var(--mono);font-size:11px;fill:var(--accent);font-weight:500}
+svg .t-coll{font-family:var(--mono);font-size:12.5px;font-weight:500;fill:var(--mongo)}
+.coll{fill:var(--surface);stroke:var(--mongo);stroke-width:1}
+.sw.sig{border-top:2px dashed var(--accent)} .sw.dbs{border-top:2px solid var(--mongo)}
+.steps table{min-width:980px}
+.contracts + .note{margin-top:-6px}
+/* tables */
+.tbl{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+.steps table{min-width:880px}
+.score table{min-width:720px}
+.intents table{min-width:780px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--bg)}
+tr:last-child td,tr:last-child th{border-bottom:0}
+td.n{font-family:var(--display);font-weight:800;font-size:18px;color:var(--accent);width:40px}
+td.who b{display:block;font-weight:600}
+td.who span{font-family:var(--mono);font-size:11.5px}
+.w-subq{color:var(--subq)} .w-gem{color:var(--gem)} .w-fetch{color:var(--fetch)} .w-mongo{color:var(--mongo)} .w-user{color:var(--user)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:13px}
+tr.tot td{font-weight:600;background:var(--bg)}
+.q{font-style:italic;color:var(--ink-2)}
+
+/* contracts */
+.contracts{display:grid;grid-template-columns:1.25fr 1fr;gap:12px}
+.ct{background:var(--surface);border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.ct h3{padding:14px 16px 4px}
+.ct p{padding:0 16px 10px;font-size:13.5px;color:var(--ink-2)}
+.ct pre{margin:0;font-family:var(--mono);font-size:12px;line-height:1.5;background:var(--bg);border-top:1px solid var(--line);padding:14px 16px;overflow-x:auto;white-space:pre;flex:1}
+.ct pre .c{color:var(--muted)}
+
+/* misc */
+.agents{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.ag{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.ag p{font-size:13.5px;color:var(--ink-2)}
+.ag code{font-size:12px;color:var(--fetch)}
+.team{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.tm{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.tm ul{margin:0;padding-left:18px;font-size:13.5px;color:var(--ink-2);display:flex;flex-direction:column;gap:3px}
+.tm .who{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.clock{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border-left:2px solid var(--line)}
+.clock li{display:grid;grid-template-columns:120px 1fr;gap:16px;padding:10px 0 10px 18px;position:relative;font-size:14px}
+.clock li::before{content:"";position:absolute;left:-6px;top:16px;width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.clock .t{font-family:var(--mono);font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.ask{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.ask div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.ask b{font-family:var(--display);font-size:16px}
+.ask p{font-size:14px;color:var(--ink-2)}
+.note{font-size:13px;color:var(--muted)}
+footer{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6px}
+footer a{color:var(--muted)}
+
+@media (max-width:900px){
+  .agents,.team{grid-template-columns:1fr 1fr}
+  .contracts,.ask{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+  .finds,.agents,.team{grid-template-columns:1fr}
+  .clock li{grid-template-columns:1fr;gap:2px}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">AIE Code Summit Hackathon · Nov 7, 2026 · Locked build spec · 2–3 hours</div>
+  <h1>TripCheck <small>build spec</small></h1>
+  <p class="lede">You chat in ASI:One, so we build no UI. SubQ Snap turns your words into a structured request and saves it to MongoDB. On a signal, it reads everything back and picks the plan. Gemini 4 Argon independently verifies it. You approve. The locker room pays only when new money goes out, and Fetch.ai agents execute. Every step is timed and costed.</p>
+  <div class="chips">
+    <span class="chip c-fetch">ASI:One chat (Agentverse)</span>
+    <span class="chip c-subq">SubQ Snap 1.1 · intake + planner</span>
+    <span class="chip c-mongo">MongoDB · ledger + run log</span>
+    <span class="chip c-gem">Gemini 4 Argon · verifier</span>
+    <span class="chip c-fetch">Fetch.ai · payment + vendor agents</span>
+  </div>
+</header>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Research</div>
+    <h2>What we found, and how it shapes the design</h2>
+  </div>
+  <div class="finds">
+    <div class="f">
+      <span class="tag good">Chat UI · use theirs</span>
+      <h3>Don't build a chat. Use ASI:One.</h3>
+      <ul>
+        <li>An agent that speaks the Agent Chat Protocol gets a <b>"Chat with Agent"</b> button on Agentverse, which opens an ASI:One chat session.</li>
+        <li>Set <code>mailbox=True</code> and the agent runs on a laptop with no public URL. Agentverse queues messages for it.</li>
+        <li>Message types (<code>ChatMessage</code>, <code>ChatAcknowledgement</code>) come ready-made from <code>uagents_core</code>.</li>
+      </ul>
+      <p class="dec">Decision: one orchestrator uAgent with the chat protocol and a mailbox. No frontend.</p>
+      <div class="src"><a href="https://docs.agentverse.ai/documentation/getting-started/enable-chat-protocol">Enable chat protocol</a><a href="https://uagents.fetch.ai/docs/examples/asi-1">ASI:One-compatible agent</a><a href="https://docs.agentverse.ai/documentation/launch-agents/agentverse-sdk/overview">Agentverse SDK</a></div>
+    </div>
+    <div class="f alert">
+      <span class="tag warn">Important · SubQ Snap</span>
+      <h3>Snap is a decision model, not a text writer</h3>
+      <ul>
+        <li><code>POST api.subq.ai/v1/systemone</code> takes a <code>state</code> (up to 384K tokens) and 1–16 <code>questions</code>.</li>
+        <li>Each answer is a <b>yes/no probability</b>, a <b>choice</b> (2–255 labelled options, with a probability for each and a confidence), or a <b>score</b>.</li>
+        <li><b>Output tokens are always 0</b>, so you pay input only. It can't write JSON or a plan as text.</li>
+        <li>Text-generating models (<code>subq-1.4-small</code>, <code>subq-preview</code>) need your organization to be enabled.</li>
+      </ul>
+      <p class="dec">Decision: intake = Snap answers fixed questions about your message. Planner = Snap picks one option per trip slot from the candidates in MongoDB. Our code assembles the plan JSON from those picks.</p>
+      <div class="src"><a href="https://docs.subq.ai/endpoints/decisions-api/">Decisions API</a><a href="https://docs.subq.ai/using-the-api/models">Models</a><a href="https://github.com/devbux/subq-snap-mcp">Choice question format</a></div>
+    </div>
+    <div class="f">
+      <span class="tag good">Verifier · Gemini 4 Argon</span>
+      <h3>The "Argon" model exists. Use it.</h3>
+      <ul>
+        <li>A reasoning model, reported around $2 / $10 per 1M input/output tokens at introductory pricing until Nov 30. Confirm in AI Studio.</li>
+        <li>Responses include <code>usage_metadata</code> (prompt and output token counts), so we can compute cost per call.</li>
+        <li>Gemini can also transcribe audio if we add voice later.</li>
+      </ul>
+      <p class="dec">Decision: the verifier is Gemini 4 Argon with a JSON output schema. Hard math is done in Python checks.</p>
+      <div class="src"><a href="https://artificialanalysis.ai/models/gemini-4-argon">Argon analysis</a><a href="https://www.morphllm.com/gemini-api-pricing">Gemini pricing (3rd party)</a></div>
+    </div>
+    <div class="f">
+      <span class="tag good">Locker room · Fetch payments</span>
+      <h3>Fetch already has a payment protocol</h3>
+      <ul>
+        <li>The Agent Payment Protocol lets a seller agent request payment and a buyer agent commit it. The official example uses <b>Stripe sandbox</b>, so no real money moves.</li>
+        <li>That is our locker room: an agent holding the Stripe test key that commits payment only after your approval and only up to the capped amount.</li>
+      </ul>
+      <p class="dec">Decision: build the locker room as a payment agent, so the card never enters any prompt.</p>
+      <div class="src"><a href="https://innovationlab.fetch.ai/resources/docs/examples/agent-transaction/stripe-horoscope-payment-protocol">Stripe payment protocol example</a></div>
+    </div>
+    <div class="f">
+      <span class="tag warn">Voice</span>
+      <h3>Voice: keep it out of the critical path</h3>
+      <p>ASI:One chat is text. Gemini voice-to-text means building our own mic page, which brings back the UI we just removed. For the demo, type, or use your phone's or laptop's built-in dictation in the ASI:One box. Add a Gemini voice page only if there's spare time.</p>
+    </div>
+    <div class="f">
+      <span class="tag warn">Caveat</span>
+      <h3>Verify these three things in the first 15 minutes</h3>
+      <ul>
+        <li>Run <code>GET /v1/models</code> on SubQ and confirm the exact Snap model ID (the docs say both <code>subq-snap-1.1</code> and <code>subq-snap-preview</code>).</li>
+        <li>Confirm your Gemini key can call Argon. If not, use the best Gemini Pro model you have.</li>
+        <li>Open "Chat with Agent" on a hello-world mailbox agent.</li>
+      </ul>
+      <p class="note">I couldn't open docs.subq.ai or docs.agentverse.ai directly from here. These details come from search results that quote those pages.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Final architecture</div>
+    <h2>MongoDB in the middle, signals between steps</h2>
+    <p class="sub">Steps never hand data directly to each other. Each step reads what it needs from MongoDB, does its work, then writes its result and its time and cost back. Only then does it send a small signal (trip ID + plan version) to the next step. Every plan version, every verdict and every cost is saved.</p>
+  </div>
+  <div class="diagram">
+    <svg viewBox="0 0 960 700" role="img" aria-label="Hub architecture. You send raw text from ASI:One to step 1, SubQ Snap intake, which writes the structured request and its time and cost to MongoDB, then signals step 2. The SubQ Snap planner reads the request and candidates from MongoDB, writes plan version N with time and cost, then signals step 3. The Gemini 4 Argon verifier reads plan N from MongoDB, writes its verdict with time and cost, and signals either the planner again for a new version or, on pass, the approval step. You approve after reading the plan and scoreboard from MongoDB. If new money is needed the locker room pays the exact amount, then Fetch.ai agents execute, write bookings to MongoDB and reply in chat.">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-bad" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-good" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="ahw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-warn" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="ahs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-sig" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah-db" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+
+      <!-- reject loop -->
+      <path class="edge-bad" d="M775,60 C775,8 535,8 535,60" marker-end="url(#ahb)"/>
+      <text class="t-edge-bad" x="655" y="48" text-anchor="middle">⚡ REJECT → planner makes v2</text>
+
+      <!-- top row -->
+      <rect class="n-fetch" x="20" y="60" width="130" height="110" rx="10"/>
+      <rect class="r-fetch" x="20" y="60" width="130" height="5" rx="2"/>
+      <text class="t-role" x="34" y="88" style="fill:var(--fetch)">You</text>
+      <text class="t-name" x="34" y="112">ASI:One</text>
+      <text class="t-desc" x="34" y="134">raw message</text>
+      <text class="t-desc" x="34" y="150">in your words</text>
+
+      <rect class="n-subq" x="200" y="60" width="190" height="110" rx="10"/>
+      <rect class="r-subq" x="200" y="60" width="190" height="5" rx="2"/>
+      <text class="t-role" x="214" y="88" style="fill:var(--subq)">① Intake</text>
+      <text class="t-name" x="214" y="112">SubQ Snap</text>
+      <text class="t-desc" x="214" y="134">raw text → structured</text>
+      <text class="t-desc" x="214" y="150">request + action</text>
+
+      <rect class="n-subq" x="440" y="60" width="190" height="110" rx="10"/>
+      <rect class="r-subq" x="440" y="60" width="190" height="5" rx="2"/>
+      <text class="t-role" x="454" y="88" style="fill:var(--subq)">② Planner</text>
+      <text class="t-name" x="454" y="112">SubQ Snap</text>
+      <text class="t-desc" x="454" y="134">picks every slot from</text>
+      <text class="t-desc" x="454" y="150">all candidates → plan vN</text>
+
+      <rect class="n-gem" x="680" y="60" width="190" height="110" rx="10"/>
+      <rect class="r-gem" x="680" y="60" width="190" height="5" rx="2"/>
+      <text class="t-role" x="694" y="88" style="fill:var(--gem)">③ Verifier</text>
+      <text class="t-name" x="694" y="112">Gemini 4 Argon</text>
+      <text class="t-desc" x="694" y="134">checks plan vN, finds</text>
+      <text class="t-desc" x="694" y="150">cheaper equivalents</text>
+
+      <path class="edge" d="M150,115 H196" marker-end="url(#ah)"/>
+      <text class="t-edge" x="173" y="107" text-anchor="middle">text</text>
+      <path class="edge-sig" d="M390,115 H436" marker-end="url(#ahs)"/>
+      <text class="t-edge-sig" x="413" y="107" text-anchor="middle">⚡ ready</text>
+      <path class="edge-sig" d="M630,115 H676" marker-end="url(#ahs)"/>
+      <text class="t-edge-sig" x="653" y="107" text-anchor="middle">⚡ vN</text>
+
+      <!-- read/write to hub -->
+      <path class="edge-db2" d="M295,170 V236" marker-end="url(#ahm)"/>
+      <text class="t-edge-db" x="303" y="200">write request</text>
+      <text class="t-edge-db" x="303" y="214">+ ms, $</text>
+
+      <path class="edge-db2" d="M490,240 V174" marker-end="url(#ahm)"/>
+      <text class="t-edge-db" x="498" y="200">read all</text>
+      <path class="edge-db2" d="M575,170 V236" marker-end="url(#ahm)"/>
+      <text class="t-edge-db" x="583" y="200">write vN</text>
+      <text class="t-edge-db" x="583" y="214">+ ms, $</text>
+
+      <path class="edge-db2" d="M730,240 V174" marker-end="url(#ahm)"/>
+      <text class="t-edge-db" x="738" y="200">read vN</text>
+      <path class="edge-db2" d="M815,170 V236" marker-end="url(#ahm)"/>
+      <text class="t-edge-db" x="823" y="200">write verdict</text>
+      <text class="t-edge-db" x="823" y="214">+ ms, $</text>
+
+      <!-- hub -->
+      <rect class="n-mongo" x="20" y="240" width="880" height="130" rx="12"/>
+      <rect class="r-mongo" x="20" y="240" width="880" height="5" rx="2"/>
+      <text class="t-role" x="36" y="268" style="fill:var(--mongo)">MongoDB · single source of truth</text>
+      <g>
+        <rect class="coll" x="36" y="282" width="132" height="48" rx="6"/>
+        <text class="t-coll" x="46" y="301">requests</text><text class="t-desc" x="46" y="320">intent, dates, prefs</text>
+        <rect class="coll" x="177" y="282" width="132" height="48" rx="6"/>
+        <text class="t-coll" x="187" y="301">candidates</text><text class="t-desc" x="187" y="320">flights, hotels, dining</text>
+        <rect class="coll" x="318" y="282" width="132" height="48" rx="6"/>
+        <text class="t-coll" x="328" y="301">plans</text><text class="t-desc" x="328" y="320">v1, v2 … every loop</text>
+        <rect class="coll" x="459" y="282" width="132" height="48" rx="6"/>
+        <text class="t-coll" x="469" y="301">verdicts</text><text class="t-desc" x="469" y="320">PASS / REJECT + why</text>
+        <rect class="coll" x="600" y="282" width="132" height="48" rx="6"/>
+        <text class="t-coll" x="610" y="301">run_log</text><text class="t-desc" x="610" y="320">step, loop, ms, $</text>
+        <rect class="coll" x="741" y="282" width="140" height="48" rx="6"/>
+        <text class="t-coll" x="751" y="301">ledger</text><text class="t-desc" x="751" y="320">bookings, payments</text>
+      </g>
+      <text class="t-desc" x="36" y="356">Every step follows the same pattern: read → work → write result + time + cost → send signal.</text>
+
+      <!-- PASS channel -->
+      <path class="edge-sig" d="M870,115 H930 V505 H884" marker-end="url(#ahs)"/>
+      <text class="t-edge-sig" x="942" y="310" transform="rotate(90 942 310)" text-anchor="middle">⚡ PASS → approval</text>
+
+      <!-- bottom row -->
+      <rect class="n-user" x="700" y="450" width="180" height="110" rx="10"/>
+      <rect class="r-user" x="700" y="450" width="180" height="5" rx="2"/>
+      <text class="t-role" x="714" y="478" style="fill:var(--user)">④ Human gate</text>
+      <text class="t-name" x="714" y="502">You approve</text>
+      <text class="t-desc" x="714" y="524">plan + scoreboard</text>
+      <text class="t-desc" x="714" y="540">shown in chat</text>
+      <path class="edge-db2" d="M790,374 V446" marker-end="url(#ahm)"/>
+      <text class="t-edge-db" x="798" y="412">read plan</text>
+      <text class="t-edge-db" x="798" y="426">+ run_log</text>
+
+      <polygon class="n-dec" points="590,460 645,505 590,550 535,505"/>
+      <text class="t-role" x="590" y="501" text-anchor="middle" style="fill:var(--warn)">New</text>
+      <text class="t-role" x="590" y="516" text-anchor="middle" style="fill:var(--warn)">money?</text>
+      <path class="edge" d="M700,505 H649" marker-end="url(#ah)"/>
+      <text class="t-edge" x="674" y="497" text-anchor="middle">yes</text>
+
+      <rect class="n-fetch" x="180" y="450" width="230" height="110" rx="10"/>
+      <rect class="r-fetch" x="180" y="450" width="230" height="5" rx="2"/>
+      <text class="t-role" x="194" y="478" style="fill:var(--fetch)">⑥ Execute</text>
+      <text class="t-name" x="194" y="502">Fetch.ai agents</text>
+      <text class="t-desc" x="194" y="524">Flight · Hotel · Dining</text>
+      <text class="t-desc" x="194" y="540">book · cancel · rebook</text>
+      <path class="edge-db2" d="M330,450 V374" marker-end="url(#ahm)"/>
+      <text class="t-edge-db" x="338" y="412">write bookings</text>
+
+      <path class="edge-good" d="M535,505 H414" marker-end="url(#ahg)"/>
+      <text class="t-edge-good" x="475" y="495" text-anchor="middle">no</text>
+      <text class="t-edge-good" x="475" y="523" text-anchor="middle">cancel / cheaper</text>
+
+      <path class="edge-warn" d="M590,550 V596" marker-end="url(#ahw)"/>
+      <text class="t-edge-warn" x="600" y="578">yes</text>
+      <rect class="n-user" x="480" y="600" width="230" height="84" rx="10"/>
+      <rect class="r-user" x="480" y="600" width="230" height="5" rx="2"/>
+      <text class="t-role" x="494" y="627" style="fill:var(--user)">⑤ Locker room</text>
+      <text class="t-desc" x="494" y="649">Fetch payment agent · Stripe test</text>
+      <text class="t-desc" x="494" y="665">pays the exact approved amount</text>
+      <path class="edge-warn" d="M480,642 H290 V564" marker-end="url(#ahw)"/>
+      <text class="t-edge-warn" x="385" y="634" text-anchor="middle">paid</text>
+
+      <rect class="n-fetch" x="20" y="450" width="120" height="110" rx="10"/>
+      <rect class="r-fetch" x="20" y="450" width="120" height="5" rx="2"/>
+      <text class="t-role" x="34" y="478" style="fill:var(--fetch)">You</text>
+      <text class="t-name" x="34" y="502">ASI:One</text>
+      <text class="t-desc" x="34" y="524">booked, refund,</text>
+      <text class="t-desc" x="34" y="540">final scoreboard</text>
+      <path class="edge" d="M180,505 H144" marker-end="url(#ah)"/>
+      <text class="t-edge" x="162" y="497" text-anchor="middle">reply</text>
+    </svg>
+  </div>
+  <div class="legend">
+    <span><i class="sw sig"></i>⚡ Signal (trip ID + version only)</span>
+    <span><i class="sw dbs"></i>Read / write MongoDB</span>
+    <span><i class="sw bad"></i>Verifier rejects (max 3 loops)</span>
+    <span><i class="sw good"></i>No new money</span>
+    <span><i class="sw warn"></i>New money: locker room first</span>
+  </div>
+  <div class="contracts">
+    <div class="ct"><h3>One loop, as stored in MongoDB</h3><p>The order things happen in for a booking that needs two plan versions</p><pre>1  intake     write requests/JP-1115         run_log: intake      0.9s  $0.0001
+   ⚡ ready {trip_id:"JP-1115"}
+2  planner    read  requests + candidates
+              write plans/JP-1115/v1          run_log: plan  L1    1.8s  $0.0021
+   ⚡ {trip_id, v:1}
+3  verifier   read  plans/v1 + raw text + candidates
+              write verdicts/v1 = REJECT      run_log: verify L1   6.2s  $0.105
+   ⚡ {trip_id, v:2}  → back to planner
+2  planner    read  requests + candidates + verdicts/v1
+              write plans/JP-1115/v2          run_log: plan  L2    1.7s  $0.0021
+3  verifier   read  plans/v2 → write verdicts/v2 = PASS   run_log: verify L2
+   ⚡ PASS {trip_id, v:2}
+4  approve    read  plans/v2 + run_log → chat → you say "approve"</pre></div>
+    <div class="ct"><h3>run_log entry</h3><p>Every step writes one of these. The scoreboard is a sum over them.</p><pre>{
+  "trip_id": "JP-1115",
+  "step": "planner",
+  "loop": 1,
+  "plan_version": 1,
+  "model": "subq-snap-1.1",
+  "started_at": "2026-11-07T14:02:11Z",
+  "ms": 1840,
+  "input_tokens": 41200,
+  "output_tokens": 0,
+  "cost_usd": 0.0021
+}</pre></div>
+  </div>
+  <p class="note">Sending a signal: the simplest version is the orchestrator calling the next step with <code>{trip_id, version}</code> right after the write succeeds. An option for later is for each step to watch MongoDB change streams on a <code>status</code> field.</p>
+</section>
+
+<section class="steps">
+  <div class="sec-head">
+    <div class="eyebrow">Step contract</div>
+    <h2>Exactly what each step reads, does and writes</h2>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th></th><th>Who</th><th>Wakes on</th><th>Reads from MongoDB</th><th>Does</th><th>Writes to MongoDB, then signals</th></tr></thead>
+      <tbody>
+        <tr><td class="n">1</td><td class="who"><b>Intake</b><span class="w-subq">SubQ Snap</span></td>
+          <td>Your chat message</td><td><code>ledger</code> (for changes: which bookings you have)</td>
+          <td>Fixed questions: <code>intent</code> (book / cancel / reschedule / extend), <code>city</code>, <code>target_booking</code>, <code>budget_tier</code>, <code>pace</code>, <code>dining_style</code>. Dates and numbers come from a date parser.</td>
+          <td><code>requests</code> (raw text + structured + action) and <code>run_log</code> → ⚡ ready</td></tr>
+        <tr><td class="n">2</td><td class="who"><b>Planner</b><span class="w-subq">SubQ Snap</span></td>
+          <td>⚡ ready, or ⚡ REJECT</td><td><code>requests</code>, <code>candidates</code>, <code>ledger</code>, last <code>verdicts</code></td>
+          <td>One choice question per slot (flights, hotel per city, dinners), with every candidate in context</td>
+          <td><code>plans</code> v N (PlanPackage) and <code>run_log</code> → ⚡ vN</td></tr>
+        <tr><td class="n">3</td><td class="who"><b>Verifier</b><span class="w-gem">Gemini 4 Argon</span></td>
+          <td>⚡ vN</td><td><code>plans</code> vN, <code>requests</code> (incl. raw text), <code>candidates</code></td>
+          <td>Python checks first, then Argon reviews (e.g. $900 flight → $800 equivalent)</td>
+          <td><code>verdicts</code> vN and <code>run_log</code> → ⚡ REJECT (to planner, max 3) or ⚡ PASS</td></tr>
+        <tr><td class="n">4</td><td class="who"><b>Approve</b><span class="w-user">You, in chat</span></td>
+          <td>⚡ PASS</td><td>passing <code>plans</code> + all <code>run_log</code> for the trip</td>
+          <td>Shows the plan + scoreboard. You reply "approve".</td>
+          <td><code>plans.approved = true</code>, <code>plan_hash</code></td></tr>
+        <tr><td class="n">5</td><td class="who"><b>Locker room</b><span class="w-fetch">Fetch payment agent</span></td>
+          <td>Approval with money_delta &gt; 0</td><td>approved plan, <code>money_delta</code></td>
+          <td>Stripe sandbox payment for exactly that amount. Refuses anything else.</td>
+          <td><code>ledger.payments</code></td></tr>
+        <tr><td class="n">6</td><td class="who"><b>Execute</b><span class="w-fetch">Fetch vendor agents</span></td>
+          <td>Approval (+ payment if needed)</td><td>approved plan actions</td>
+          <td>Book, cancel or rebook against mock inventory</td>
+          <td><code>ledger.bookings</code> → reply in chat</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Data contracts</div>
+    <h2>What the planner hands to the verifier</h2>
+    <p class="sub">This is the document the planner writes to <code>plans</code> and the verifier reads back. It holds the full picture: the pick, every alternative the planner could have picked instead, and how sure it was. That's what lets the verifier find the $800 flight.</p>
+  </div>
+  <div class="contracts">
+    <div class="ct"><h3>PlanPackage</h3><p>SubQ planner → Gemini verifier</p><pre>{
+  "trip_id": "JP-1115", "iteration": 1,
+  "request": { "intent": "book", "cities": ["Tokyo","Osaka"],
+    "dates": ["2026-11-15","2026-11-22"],
+    "budget_usd": 3500, "events": ["EVT-1","EVT-2","EVT-3"] },
+  "slots": [
+    { "slot": "flight_out",
+      "pick": "FLT-0882",
+      "pick_detail": {"price":900,"dep":"11-15 11:00","airline":"…"},
+      "confidence": 0.71,
+      "probs": {"FLT-0882":0.71,"FLT-0915":0.22,"…":0.07},
+      "candidates": [ <span class="c">/* every option, full detail */</span> ] },
+    { "slot": "hotel_tokyo", "pick": "HTL-2210", … }
+  ],
+  "totals": { "cost_usd": 3180, "within_budget": true },
+  "ledger_before": [], <span class="c">// filled for cancel/reschedule/extend</span>
+  "actions": [ {"op":"book","id":"FLT-0882"}, … ],
+  "money_delta_usd": 3180,
+  "verifier_notes_prev": [],
+  "metrics": { "subq_ms": 1840, "subq_input_tokens": 41200 }
+}</pre></div>
+    <div class="ct"><h3>Verdict</h3><p>Gemini verifier → planner (on reject) or you (on pass)</p><pre>{
+  "result": "REJECT",
+  "checks": [
+    {"rule":"budget","ok":true},
+    {"rule":"no_overlap","ok":true},
+    {"rule":"cheaper_equivalent","ok":false}
+  ],
+  "issues": [{
+    "slot": "flight_out",
+    "found": "FLT-0915",
+    "why": "$800 vs $900, same day,
+            departs 40 min later",
+    "saves_usd": 100 }],
+  "replace": {"flight_out": "FLT-0915"},
+  "metrics": {
+    "gemini_ms": 6200,
+    "in_tokens": 48000,
+    "out_tokens": 900 }
+}</pre></div>
+  </div>
+</section>
+
+<section class="score">
+  <div class="sec-head">
+    <div class="eyebrow">Selling point</div>
+    <h2>The scoreboard sent to chat</h2>
+    <p class="sub">Every iteration logs time and cost per model, so you can show judges what verification costs against what it saves. <b>The numbers below are a mock-up of the format.</b> Real values come from the run log.</p>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Iteration</th><th class="num">SubQ time</th><th class="num">SubQ cost</th><th class="num">Gemini time</th><th class="num">Gemini cost</th><th>Verdict</th><th class="num">Trip total</th></tr></thead>
+      <tbody>
+        <tr><td>Intake</td><td class="num">0.9 s</td><td class="num">$0.0001</td><td class="num">–</td><td class="num">–</td><td>–</td><td class="num">–</td></tr>
+        <tr><td>Plan 1</td><td class="num">1.8 s</td><td class="num">$0.0021</td><td class="num">6.2 s</td><td class="num">$0.105</td><td><span class="tag bad">reject · flight</span></td><td class="num">$3,180</td></tr>
+        <tr><td>Plan 2</td><td class="num">1.7 s</td><td class="num">$0.0021</td><td class="num">5.4 s</td><td class="num">$0.101</td><td><span class="tag good">pass</span></td><td class="num">$3,080</td></tr>
+        <tr class="tot"><td>Total</td><td class="num">4.4 s</td><td class="num">$0.0043</td><td class="num">11.6 s</td><td class="num">$0.206</td><td>2 rounds</td><td class="num">saved $100</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Cost formula. SubQ: input_tokens × the price per million (output is free). Gemini: in_tokens × input price + out_tokens × output price, read from <code>usage_metadata</code>. Put the prices in one config file and confirm them on each console.</p>
+</section>
+
+<section class="intents">
+  <div class="sec-head">
+    <div class="eyebrow">Mid-trip changes</div>
+    <h2>Cancel, reschedule, extend: same loop</h2>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Intent</th><th>You say</th><th>Planner (SubQ) decides</th><th>Verifier (Gemini) checks</th><th>Money</th></tr></thead>
+      <tbody>
+        <tr><td><b>Cancel</b></td><td class="q">"Cancel my Osaka hotel"</td><td>Which booking (choice over the ledger). Whether to suggest a free date change instead (yes/no).</td><td>Refund = policy math (in Python), right booking ID, nothing left orphaned</td><td><span class="tag good">no vault · refund to card</span></td></tr>
+        <tr><td><b>Reschedule</b></td><td class="q">"Move Kyoto two days later"</td><td>New hotel/flight option per affected slot</td><td>No overlapping nights, events still covered, fee vs rebook</td><td><span class="tag warn">vault only if Δ &gt; 0</span></td></tr>
+        <tr><td><b>Extend</b></td><td class="q">"2 more nights in Osaka"</td><td>Same hotel or alternative. New return flight.</td><td>Return flight matches the new end date, nights continuous, within budget</td><td><span class="tag warn">vault · extension only</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">Reschedule order: book the new option first, then cancel the old one, so you're never left without a room.</p>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Agents on Agentverse</div>
+    <h2>Five uAgents, one process</h2>
+    <p class="sub">Run them together in one uAgents Bureau on a laptop. Only the orchestrator needs a mailbox for ASI:One.</p>
+  </div>
+  <div class="agents">
+    <div class="ag"><h3>Orchestrator</h3><p>Chat protocol + mailbox. Runs each step, sends the ⚡ signal after every MongoDB write, and posts the scoreboard to chat.</p><code>mailbox=True</code></div>
+    <div class="ag"><h3>Locker room</h3><p>Payment protocol, buyer role. Holds the Stripe test key and pays only for an approved plan hash.</p><code>payment protocol</code></div>
+    <div class="ag"><h3>Flight + Hotel</h3><p>Seller agents. Book, cancel and rebook against seeded MongoDB inventory. Request payment when needed.</p><code>2 agents</code></div>
+    <div class="ag"><h3>Dining</h3><p>Seller agent for restaurant reservations. Usually free, so it shows the no-money path.</p><code>1 agent</code></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Team split</div>
+    <h2>Four people, parallel from minute 15</h2>
+  </div>
+  <div class="team">
+    <div class="tm"><span class="who">Person A</span><h3>Agents + chat</h3><ul><li>Orchestrator with chat protocol, mailbox, ASI:One working</li><li>Step routing + approve message</li><li>Final scoreboard message</li></ul></div>
+    <div class="tm"><span class="who">Person B</span><h3>Data + execution</h3><ul><li>MongoDB seed: Japan flights, hotels with policies, dining, events</li><li>Flight, Hotel and Dining vendor agents</li><li>Locker room with Stripe sandbox</li></ul></div>
+    <div class="tm"><span class="who">Person C</span><h3>SubQ</h3><ul><li>Intake questions + date parser</li><li>Planner: slot → choice questions over candidates</li><li>PlanPackage assembly + metrics</li></ul></div>
+    <div class="tm"><span class="who">Person D</span><h3>Gemini verifier</h3><ul><li>Python checks (budget, overlap, alignment, refund)</li><li>Argon prompt + Verdict JSON schema</li><li>Run log + cost calculation</li></ul></div>
+  </div>
+  <ol class="clock">
+    <li><span class="t">0:00 – 0:15</span><span>Confirm SubQ model ID, Argon access, and a hello-world ASI:One chat. Freeze PlanPackage and Verdict.</span></li>
+    <li><span class="t">0:15 – 1:30</span><span>Build in parallel. Each person tests their part with a fake input in the agreed JSON.</span></li>
+    <li><span class="t">1:30 – 2:15</span><span>Wire end to end: book flow first, then cancel, then extend.</span></li>
+    <li><span class="t">2:15 – 2:45</span><span>Rehearse the demo: book (verifier catches $900 → $800), then cancel (refund, no card), then extend (vault pays only the extra). Record the 1-minute video.</span></li>
+  </ol>
+</section>
+
+<section>
+  <div class="sec-head">
+    <div class="eyebrow">Ask at the sponsor booths</div>
+    <h2>Three questions worth two minutes each</h2>
+  </div>
+  <div class="ask">
+    <div><b>SubQ booth</b><p>"Can you enable <code>subq-1.4-small</code> for our org?" If they do, intake can produce full JSON from your raw text, which matches what their team described to you. If not, the Snap-only design above still works.</p></div>
+    <div><b>Fetch booth</b><p>"Is the payment protocol plus Stripe sandbox the right way to do an approval-gated payment?" It's also worth asking if ASI:One accepts voice input.</p></div>
+    <div><b>Google booth</b><p>"Does our hackathon key have Gemini 4 Argon access, and what's the current price?" Put the answer in the cost config.</p></div>
+  </div>
+</section>
+
+<footer>
+  <span>Built during the AIE Code Summit Hackathon, Nov 7, 2026. All prices, IDs and scoreboard numbers are demo data. Earlier versions (v1, v2, final) are kept for comparison.</span>
+  <span>Sources: <a href="https://docs.agentverse.ai/documentation/getting-started/enable-chat-protocol">Agentverse chat protocol</a> · <a href="https://uagents.fetch.ai/docs/examples/asi-1">uAgents ASI:One example</a> · <a href="https://innovationlab.fetch.ai/resources/docs/examples/agent-transaction/stripe-horoscope-payment-protocol">Fetch payment protocol</a> · <a href="https://docs.subq.ai/endpoints/decisions-api/">SubQ Decisions API</a> · <a href="https://docs.subq.ai/using-the-api/models">SubQ models</a> · <a href="https://subq.ai/introducing-subq-snap">Introducing SubQ Snap</a> · <a href="https://artificialanalysis.ai/models/gemini-4-argon">Gemini 4 Argon</a></span>
+</footer>
+</div>
+
+</body>
+</html>
