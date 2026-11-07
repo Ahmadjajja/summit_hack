@@ -61,6 +61,14 @@ To see the worst case (3 loops, then approval blocked), run `python run_local.py
 
 Copy `.env.example` to `.env` and fill in a key to switch that part to the real API. Empty keys stay on the mock.
 
+### Chat in the terminal (real APIs from .env)
+
+```bash
+DEMO_NOW=2026-11-18T10:00:00 python chat.py
+```
+
+Type a trip request, then `approve`. Follow-ups go to the same trip ("Stay 2 more nights in Osaka", "Cancel my Osaka hotel"). `/trip` shows bookings and payments.
+
 ### Run the real system (ASI:One chat + Fetch.ai agents)
 
 ```bash
