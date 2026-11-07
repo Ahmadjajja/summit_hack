@@ -61,6 +61,14 @@ To see the worst case (3 loops, then approval blocked), run `python run_local.py
 
 Copy `.env.example` to `.env` and fill in a key to switch that part to the real API. Empty keys stay on the mock.
 
+### Simple web UI (real APIs from .env), recommended for testing and demos
+
+```bash
+DEMO_NOW=2026-11-18T10:00:00 python web.py
+```
+
+Open http://localhost:8080. Click **Book the Japan trip**, then **Approve**, then **Stay 2 more nights in Osaka** → **Approve**, then **Cancel my Osaka hotel** → **Approve**. The right panel shows bookings, payments and refunds as they change.
+
 ### Chat in the terminal (real APIs from .env)
 
 ```bash

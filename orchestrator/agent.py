@@ -28,6 +28,7 @@ from uagents_core.contrib.protocols.chat import (
 from common import config
 from common.db import get_db, plans_col
 from gate import gate
+from orchestrator import chat_text
 from orchestrator.pipeline import plan_trip
 from vendors.protocol import ExecutePlan, PlanExecuted
 
@@ -55,8 +56,11 @@ def make_orchestrator(coordinator_address: str, mailbox: bool | None = None) -> 
     async def on_chat(ctx: Context, sender: str, msg: ChatMessage):
         await ctx.send(sender, ChatAcknowledgement(timestamp=datetime.now(timezone.utc),
                                                    acknowledged_msg_id=msg.msg_id))
-        text = " ".join(c.text for c in msg.content if isinstance(c, TextContent)).strip()
+        text = chat_text.clean(" ".join(c.text for c in msg.content if isinstance(c, TextContent)))
         if not text:
+            return
+        if chat_text.is_help(text):
+            await ctx.send(sender, _reply(chat_text.HELP))
             return
         s = _sessions().find_one({"sender": sender}) or {}
         trip_id = s.get("trip_id") or f"T-{uuid4().hex[:6].upper()}"
