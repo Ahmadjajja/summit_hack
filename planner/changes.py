@@ -22,6 +22,7 @@ from common.contracts import Action, PlanPackage, Signal, TripRequest
 from common.db import candidates_col, clean, ledger_col, plans_col
 from common.metrics import track
 from intake import subq_client
+from scout.scout import find_flights
 from vendors import policy
 
 WORDS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "couple of": 2}
@@ -64,6 +65,8 @@ def _move_return_flight(trip_id, version, active, hotel_city, new_date, meter) -
     if not ret or ret["date"] == new_date:
         return None
     options = [clean(c) for c in candidates_col().find({"kind": "flight", "from": hotel_city, "date": new_date})]
+    if not options:   # e.g. a trip planned from live web results: search for the new return flight
+        options = find_flights(trip_id, hotel_city, ret["to"], new_date)
     chosen = _pick_flight(trip_id, version, options, f"fly home from {hotel_city} on {new_date}", meter)
     return policy.change_flight_action(trip_id, ret["id"], chosen["id"]) if chosen else None
 
@@ -110,6 +113,8 @@ def build_actions(req: TripRequest, version: int, meter) -> tuple[list[Action], 
         new_date = (date.fromisoformat(target["date"]) + timedelta(days=n)).isoformat()
         options = [clean(c) for c in candidates_col().find({"kind": "flight", "from": target["from"],
                                                            "to": target["to"], "date": new_date})]
+        if not options:
+            options = find_flights(trip_id, target["from"], target["to"], new_date, target.get("slot", "flight_ret"))
         chosen = _pick_flight(trip_id, version, options, f"move {target['id']} to {new_date}", meter)
         if not chosen:
             return [], f"no flight from {target['from']} on {new_date}"

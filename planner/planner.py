@@ -26,10 +26,22 @@ def candidate_cost(c: dict) -> float:
 def _load(trip_id: str, version: int):
     req = TripRequest(**clean(requests_col().find_one({"trip_id": trip_id})))
     cands = [clean(c) for c in candidates_col().find({
-        "$or": [{"city": {"$in": req.cities}}, {"kind": "flight"}],
-        "$and": [{"$or": [{"date": {"$gte": req.start, "$lte": req.end}},
-                          {"check_in": {"$gte": req.start, "$lte": req.end}}]}],
+        "$or": [
+            # flights of THIS trip only: out to one of its cities on day 1, back from one on the last day
+            # (before: every flight in the date range, so another trip's flights could be picked)
+            {"kind": "flight", "slot": "flight_out", "date": req.start, "to": {"$in": req.cities}},
+            {"kind": "flight", "slot": "flight_ret", "date": req.end, "from": {"$in": req.cities}},
+            {"kind": "hotel", "city": {"$in": req.cities},
+             "check_in": {"$gte": req.start}, "check_out": {"$lte": req.end}},
+            {"kind": "dining", "city": {"$in": req.cities}, "date": {"$gte": req.start, "$lte": req.end}},
+        ],
     })]
+    # If a city has hotels for exactly its planned stay, don't mix in other date spans in that slot
+    from scout.scout import split_nights
+    stays = {c: (ci, co) for c, ci, co in split_nights(req.cities, req.start, req.end)}
+    exact = {c["city"] for c in cands if c["kind"] == "hotel" and stays.get(c["city"]) == (c["check_in"], c["check_out"])}
+    cands = [c for c in cands if c["kind"] != "hotel" or c["city"] not in exact
+             or stays[c["city"]] == (c["check_in"], c["check_out"])]
     excluded, hints = [], {}
     for v in verdicts_col().find({"trip_id": trip_id,
                                   "version": {"$gte": req.first_version, "$lt": version}}):

@@ -17,6 +17,7 @@ from common.contracts import Prefs, Signal, TripRequest
 from common.db import candidates_col, clean, get_db, ledger_col, requests_col
 from common.metrics import estimate_tokens, track
 from intake import subq_client
+from scout import scout
 
 MONTHS = {m: i for i, m in enumerate(
     ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)}
@@ -197,6 +198,14 @@ def run_intake(trip_id: str, raw_text: str, default_budget: float = 3500.0) -> S
 
     new_prefs = {k: a[k]["choice"] for k in PREF_KEYS if k in a}
     resolved = resolve_cities(said_cities, subq_cities)
+    origin = scout.parse_origin(raw_text) or (existing_doc or {}).get("origin")
+    if intent == "book" and not said_cities:
+        # No city we have data for was named ("Paris Dec 10-14"): ask ASI:One where the traveller
+        # is going, instead of trusting SubQ's yes/no over known cities or defaulting to Tokyo.
+        dest = scout.extract_destination(raw_text, trip_id)
+        if dest["cities"]:
+            said_cities = resolved = dest["cities"]
+        origin = dest["origin"] or origin
 
     if existing is None:
         defaults: set[str] = set()
@@ -250,6 +259,7 @@ def run_intake(trip_id: str, raw_text: str, default_budget: float = 3500.0) -> S
     doc = req.model_dump()
     # Extra field outside the TripRequest contract (readers ignore unknown keys): full message history.
     history = (existing_doc or {}).get("history", [])
+    doc["origin"] = origin or config.DEFAULT_ORIGIN   # extra field: where flights leave from (scout uses it)
     doc["history"] = history + [{"at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                                  "intent": intent, "raw_text": raw_text, "first_version": req.first_version}]
     requests_col().replace_one({"trip_id": trip_id}, doc, upsert=True)

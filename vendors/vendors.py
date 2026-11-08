@@ -131,10 +131,15 @@ def run_execute(signal: Signal) -> str:
     problems = [f"{a.op} {a.id}: {why}" for a in plan.actions if (why := precheck(plan.trip_id, a))]
     if problems:
         return "⚠️ Nothing changed. " + "; ".join(problems)
+    # each booking records ITS vendor's payment (before: every booking got the last vendor's payment ID,
+    # so a hotel refund went to e.g. the $60 dinner payment and Stripe refused it)
+    by_vendor = {p["vendor"]: p["payment_id"] for p in ledger_col().find(
+        {"type": "payment", "trip_id": plan.trip_id, "version": plan.version, "status": {"$ne": "cancelled"}})}
     with track(signal.trip_id, "execute", "fetch-vendor-agents", version=signal.version):
         for phase in phases(plan.actions):
             for a in phase:
-                lines.append("- " + apply(plan.trip_id, a, signal.payment_id if a.cost_usd > 0 else None))
+                pay = by_vendor.get(vendor_for(a.id), signal.payment_id) if a.cost_usd > 0 else None
+                lines.append("- " + apply(plan.trip_id, a, pay))
     paid = policy.gross_payable(plan.actions)
     if paid:
         lines.append(f"Paid ${paid:,.0f} through the locker room.")

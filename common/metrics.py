@@ -16,6 +16,9 @@ def cost_for(model: str, input_tokens: int, output_tokens: int) -> float:
     if "gemini" in m:
         return (input_tokens / 1e6 * config.GEMINI_PRICE_IN_PER_M
                 + output_tokens / 1e6 * config.GEMINI_PRICE_OUT_PER_M)
+    if m.startswith("asi1"):
+        return (input_tokens / 1e6 * config.ASI_PRICE_IN_PER_M
+                + output_tokens / 1e6 * config.ASI_PRICE_OUT_PER_M)
     return 0.0
 
 

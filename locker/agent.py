@@ -14,7 +14,7 @@ from uagents_core.contrib.protocols.payment import (
     payment_protocol_spec,
 )
 
-from locker.locker import LockerRefused, authorize_and_charge, mark_payment
+from locker.locker import LockerRefused, authorize_and_charge, mark_payment, void_payment
 
 
 def make_locker(agent_kwargs: dict, vendor_addresses: dict[str, str]) -> Agent:
@@ -59,9 +59,9 @@ def make_locker(agent_kwargs: dict, vendor_addresses: dict[str, str]) -> Agent:
 
     @proto.on_message(CancelPayment)
     async def on_cancel(ctx: Context, sender: str, msg: CancelPayment):
-        # Vendor couldn't book after we paid: void it. TODO(P3): Stripe refund when not dry run.
+        # Vendor couldn't book after we paid: void it and refund the card (Stripe test mode, or mock)
         if msg.transaction_id:
-            mark_payment(msg.transaction_id, "cancelled")
+            void_payment(msg.transaction_id, msg.reason or "")
         ctx.logger.warning(f"payment {msg.transaction_id} cancelled: {msg.reason}")
 
     agent.include(proto, publish_manifest=True)

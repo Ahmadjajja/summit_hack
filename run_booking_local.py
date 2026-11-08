@@ -166,6 +166,7 @@ def main():
     async def run_next(ctx: Context):
         if state["i"] >= len(scenarios):
             print(f"\n{'ALL PASSED' if not FAILS else f'{len(FAILS)} FAILED: {FAILS}'}")
+            sys.stdout.flush()  # os._exit skips the flush: piped output lost the results
             os._exit(1 if FAILS else 0)
         name, start, _ = scenarios[state["i"]]
         print(f"\n== {state['i'] + 1}. {name}")

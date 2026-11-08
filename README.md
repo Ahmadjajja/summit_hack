@@ -34,11 +34,11 @@ Every request, candidate set, plan, verdict, log line and ledger entry lands in 
 
 ## Sponsor tech
 
-- **Fetch.ai (Agentverse + ASI:One)** - the agent framework. ASI:One carries the traveler conversation in and out; Fetch.ai uAgents run the payment step and the vendor booking step and talk over the Agent Chat Protocol and Agent Payment Protocol.
+- **Fetch.ai (Agentverse + ASI:One)** - the agent framework. ASI:One carries the traveler conversation in and out; Fetch.ai uAgents run the payment step and the vendor booking step and talk over the Agent Chat Protocol and Agent Payment Protocol. **ASI:One web search** finds live flights, hotels and restaurants for any place the seed data doesn't cover (see below).
 - **SubQ Snap** - the intake and planner agents. Structured decision calls turn free text into a request and candidates into a plan.
 - **Google Gemini 4 Argon** - the verifier agent. Independent structured review of each plan against the stored request and candidates, returning a typed PASS/REJECT verdict.
 - **MongoDB Atlas** - the single source of truth. Collections: `requests`, `candidates`, `plans`, `verdicts`, `run_log`, `ledger`. Agents read and write state only here; the run log records what was checked, when, and the result.
-- **Stripe (test mode)** - payments inside the locker room. Test keys only; no real charges.
+- **Stripe (test mode)** - payments inside the locker room. Test keys only; no real charges. In the web UI the traveller pays on Stripe's hosted test Checkout (Fetch.ai's `stripe` payment method).
 
 ## Run it now (no keys needed)
 
@@ -85,6 +85,35 @@ AGENTS_USE_MAILBOX=true python -m orchestrator.agent
 
 This runs the orchestrator and the five booking agents in one process. With `AGENTVERSE_API_KEY` in `.env`, the orchestrator registers itself on Agentverse automatically and logs its agent page link. Open that page and click **Chat with Agent**. Behind a proxy, add `AIOHTTP_TRUST_ENV=true`. In chat: describe a trip → **approve** → it books. Then try "Stay 2 more nights in Osaka", "Cancel my Osaka hotel" or "Cancel the whole trip". You need `AGENT_SEED_PHRASE` set to your own secret first.
 
+### Live web search (Fetch.ai ASI:One)
+
+Ask for anywhere, e.g. `Lisbon then Porto Dec 4-9 from Boston, with a good dinner, budget $3,000` (a button in the web UI). With `ASI_ONE_API_KEY` set:
+
+1. Intake can't match a known city, so ASI:One reads the destination and origin from the message (no more silent "Tokyo" default).
+2. `scout/` searches the web for the missing slots in parallel: round-trip flights, a hotel per city, and dinners if you ask for food. It calls the ASI:One **Responses API** with `tools: [{"type": "web_search"}]`; the documented `web_search: true` flag is rejected by the live API.
+3. Results are validated (dropping anything without a price, name or valid time), given IDs such as `HTL-W…`, and saved as normal candidates with `source_url`. From there SubQ picks, Gemini and the rules verify, you approve, and the locker room pays exactly the stored price. The plan shows each live price with its source.
+4. If nothing usable is found, you get a clear "couldn't find …" reply with no plan and no charge. Changes such as "Stay 1 more night" search for the new return flight when needed.
+
+A slot that already has options (the seeded Japan trip) is never searched. A new place takes about 40–160 s the first time; after that the stored options are reused.
+
+### Stripe test payments
+
+Put a **test** secret key in `.env` (Stripe Dashboard → Test mode → Developers → API keys):
+
+```
+STRIPE_TEST_KEY=sk_test_...
+BOOKING_DRY_RUN=false
+```
+
+In the web UI, **Approve** opens Stripe Checkout in a new tab. Pay with `4242 4242 4242 4242`, any future date and any CVC. The locker room checks with Stripe that this exact plan and amount were paid, then books. Each vendor's share is an allocation of that payment. Refunds go back to the same payment, spread across a booking's payments when it was extended. Live keys are refused. The terminal chat (`chat.py`) charges Stripe's test card directly.
+
+**On the ASI:One agent** (`python -m orchestrator.agent`), payment follows Fetch.ai's Stripe example on the Agent Payment Protocol. The orchestrator is the "seller" and the traveller's chat client is the "buyer":
+
+1. `approve` → the agent sends the traveller a `RequestPayment` with `payment_method="stripe"` and `metadata["stripe"]` holding an **embedded** Checkout Session (`ui_mode`, `publishable_key`, `client_secret`, `checkout_session_id`, `amount_cents`). This needs `STRIPE_PUBLISHABLE_KEY=pk_test_...`. The secret key never leaves the server.
+2. The traveller pays on the Stripe card, and the client sends `CommitPayment` with `transaction_id` set to the Checkout Session ID. The agent checks with Stripe that this plan and amount were paid, then answers `CompletePayment` and hands the plan to the booking agents. If it isn't paid yet, it answers `CancelPayment` ("please finish checkout") and keeps waiting.
+3. `RejectPayment` expires the session, and nothing is booked.
+4. Fetch.ai notes that plain ASI:One chat often doesn't render the card (the Agentverse inspector does). If it doesn't show, reply **pay link** to get a hosted Stripe page instead. A 5 s poll notices that payment even though no `CommitPayment` arrives.
+
 ### All tests (offline, about 2 minutes)
 
 ```bash
@@ -94,6 +123,8 @@ python -m tests.test_p3_inprocess             # P3 policy + locker room
 python -m tests.test_e2e_chat                 # one conversation through the whole pipeline
 python run_booking_local.py                   # booking agents: book/reschedule/extend/cancel/failsafe
 python run_booking_local.py tamper            # vendor overcharge refused
+python -m tests.test_search_and_checkout      # live search (mocked) + Stripe Checkout (fake Stripe)
+python -m tests.test_asi_stripe_payment       # ASI:One agent: Fetch.ai RequestPayment → Stripe → CompletePayment
 python -m tests.test_asi_chat_agents          # chat protocol → orchestrator → Fetch agents → chat
 ```
 

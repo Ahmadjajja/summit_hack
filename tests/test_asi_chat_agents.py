@@ -5,6 +5,7 @@ booking coordinator → vendors ⇄ locker room (Agent Payment Protocol) → bac
     python -m tests.test_asi_chat_agents
 """
 import asyncio
+import sys
 import os
 
 os.environ.setdefault("MOCK", "subq,gemini")
@@ -52,6 +53,7 @@ def main():
             ok = active == 4 and paid == 3400
             print(f"\nledger: {active} active bookings, ${paid:,.0f} paid → {'PASS' if ok else 'FAIL'}")
             print("\nALL PASSED" if ok and not FAILS else f"\nFAILED: {FAILS}")
+            sys.stdout.flush()  # os._exit skips the flush: piped output lost the results
             os._exit(0 if ok and not FAILS else 1)
         text = SCRIPT[state["i"]][0]
         print(f"\nYou: {text}")

@@ -45,6 +45,9 @@ main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 360px;min-height:0}
 .dock{border-top:1px solid var(--line);background:var(--surface);padding:12px 20px;display:flex;flex-direction:column;gap:10px}
 .approve{display:none;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:var(--good-t)}
 .approve.show{display:flex}
+.pay{background:var(--warn-t)}.pay span{color:var(--warn)}
+.pay a{background:var(--accent);color:var(--accent-ink);border-radius:8px;padding:8px 14px;font-weight:600;text-decoration:none}
+.msg a{color:var(--accent)}
 .approve span{flex:1;color:var(--good);font-weight:600}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
 .chips button{font-size:13px;padding:5px 10px;border-radius:999px}
@@ -85,6 +88,10 @@ aside h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(
         <span>Verified. Nothing is booked or paid until you approve.</span>
         <button class="primary" id="approve" type="button">Approve</button>
       </div>
+      <div class="approve pay" id="payBar">
+        <span id="payText">Approved. Pay on Stripe (test mode) to book.</span>
+        <a id="payLink" href="#" target="_blank" rel="noopener">Pay with Stripe</a>
+      </div>
       <div class="chips" id="chips"></div>
       <form class="row" id="form">
         <textarea id="input" rows="1" placeholder="Describe your trip, or ask for a change…" aria-label="Message"></textarea>
@@ -104,6 +111,7 @@ aside h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(
 <script>
 const STEPS = [
   ["Book the Japan trip", "Japan Nov 15-22, Tokyo then Osaka for the dev events, budget $3,500"],
+  ["Live search: Lisbon + Porto", "Lisbon then Porto Dec 4-9 from Boston, with a good dinner, budget $3,000"],
   ["Stay 2 more nights in Osaka", "Stay 2 more nights in Osaka"],
   ["Cancel my Osaka hotel", "Cancel my Osaka hotel"],
   ["Cancel the whole trip", "Cancel the whole trip"],
@@ -115,7 +123,8 @@ const log = $("log"), input = $("input");
 let busy = false;
 
 function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
-function inline(s){return esc(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/`(.+?)`/g,"<code>$1</code>")}
+function inline(s){return esc(s).replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>')
+  .replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/`(.+?)`/g,"<code>$1</code>")}
 function md(text){
   const out=[]; let list=null, table=null;
   const flush=()=>{if(list){out.push("<ul>"+list.join("")+"</ul>");list=null}
@@ -139,7 +148,11 @@ function money(n){return "$"+Math.round(n).toLocaleString()}
 
 function renderTrip(t){
   if(!t) return;
-  $("mode").textContent=`SubQ: ${t.mode.subq} · Verifier: ${t.mode.gemini} · Clock: ${t.mode.now}`;
+  $("mode").textContent=`SubQ: ${t.mode.subq} · Verifier: ${t.mode.gemini} · Search: ${t.mode.search} · Pay: ${t.mode.pay} · Clock: ${t.mode.now}`;
+  if(t.notice){const m=add("",md(t.notice));}
+  $("payBar").classList.toggle("show", !!t.checkout);
+  if(t.checkout){$("payLink").href=t.checkout.url;$("payText").textContent=`Approved. Pay ${money(t.checkout.amount_usd)} on Stripe (test mode, card 4242 4242 4242 4242) to book.`}
+  pollWhilePaying(!!t.checkout);
   $("paid").textContent=money(t.paid_usd); $("refunded").textContent=money(t.refunded_usd);
   $("approveBar").classList.toggle("show", t.awaiting_approval);
   const b=$("bookings");
@@ -149,12 +162,17 @@ function renderTrip(t){
      <span class="s">${esc(x.kind)} · ${esc(x.where||"")} · ${esc(x.when||"")}</span><span class="pill ${x.status}">${x.status}</span>
    </div>`).join("");
 }
+let poll=null;
+function pollWhilePaying(on){
+  if(on&&!poll) poll=setInterval(()=>fetch("/api/trip").then(r=>r.json()).then(renderTrip).catch(()=>{}),2500);
+  if(!on&&poll){clearInterval(poll);poll=null}
+}
 function setBusy(on){busy=on;["send","approve","reset"].forEach(i=>$(i).disabled=on);
   document.querySelectorAll("#chips button").forEach(b=>b.disabled=on)}
 
 async function call(path, body){
   setBusy(true);
-  const wait=add("", '<span class="thinking">'+(path==="/api/approve"?"Booking and paying through the locker room…":"Planning and verifying with SubQ + Gemini… (10–30 s)")+'</span>');
+  const wait=add("", '<span class="thinking">'+(path==="/api/approve"?"Booking and paying through the locker room…":"Planning and verifying with SubQ + Gemini… (10–30 s; up to a minute when it searches the web for a new place)")+'</span>');
   try{
     const r=await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})});
     const d=await r.json(); wait.remove();
@@ -172,7 +190,7 @@ $("approve").addEventListener("click",()=>{if(busy)return;say("approve");call("/
 $("reset").addEventListener("click",async()=>{if(busy)return;log.innerHTML="";await call("/api/reset");greet()});
 STEPS.forEach(([label,text])=>{const b=document.createElement("button");b.type="button";b.textContent=label;b.onclick=()=>send(text);$("chips").appendChild(b)});
 
-function greet(){add("",md("**Hi, I'm TripCheck.** Tell me about your trip. I'll plan it, a separate AI checks the plan, and nothing is booked or paid until you press **Approve**.\n\nUse the buttons below to run the demo: book the Japan trip, then change it mid-trip."))}
+function greet(){add("",md("**Hi, I'm TripCheck.** Tell me about your trip. I'll plan it, a separate AI checks the plan, and nothing is booked or paid until you press **Approve**.\n\nUse the buttons below to run the demo: book the Japan trip, then change it mid-trip. For anywhere else, I search the web live with Fetch.ai ASI:One."))}
 fetch("/api/trip").then(r=>r.json()).then(renderTrip).catch(()=>{$("mode").textContent="server not reachable"});
 greet(); input.focus();
 </script>

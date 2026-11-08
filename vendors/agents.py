@@ -94,7 +94,7 @@ def make_vendor(kind: str, port: int, locker_address_ref: dict, coordinator_ref:
         orders[ref] = order
         ctx.logger.info(f"requesting ${amount:,.2f} from locker room for {[a.id for a in payable]}")
         await ctx.send(locker_address_ref["address"], RequestPayment(
-            accepted_funds=[Funds(amount=f"{amount:.2f}", currency="USD", payment_method="stripe_test")],
+            accepted_funds=[Funds(amount=f"{amount:.2f}", currency="USD", payment_method="stripe")],
             recipient=agent.address, deadline_seconds=300, reference=ref,
             description=f"TripCheck {kind}: {', '.join(f'{a.op} {a.id}' for a in payable)}",
             metadata={"trip_id": order.trip_id, "version": str(order.version), "plan_hash": order.plan_hash,

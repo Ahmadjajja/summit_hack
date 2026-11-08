@@ -120,7 +120,7 @@ class Verdict(BaseModel):
 # ---- every step → run_log ------------------------------------------------
 class RunLog(BaseModel):
     trip_id: str
-    step: Literal["intake", "planner", "verifier", "gate", "locker", "execute"]
+    step: Literal["intake", "search", "planner", "verifier", "gate", "locker", "execute"]
     loop: int = 0
     version: Optional[int] = None
     model: str

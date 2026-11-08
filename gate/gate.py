@@ -15,7 +15,7 @@ import re
 
 from common import config
 from common.contracts import PlanPackage, Signal, Verdict
-from common.db import clean, plans_col, verdicts_col
+from common.db import clean, plans_col, run_log_col, verdicts_col
 from common.metrics import scoreboard
 
 APPROVE_RE = re.compile(r"\b(approve|approved|confirm|book it|go ahead)\b", re.I)
@@ -87,8 +87,14 @@ def build_message(signal: Signal, first_version: int | None = None) -> tuple[str
         for s in plan.slots:
             d = s.pick_detail
             label = d.get("name") or d.get("airline") or f"{d.get('area')} hotel"
-            lines.append(f"- {s.slot}: {label} ({s.pick}) · ${s.cost_usd:,.0f}")
+            src = ""
+            if d.get("source"):   # found by live web search: say so, and where
+                src = f" · live web price{' · [source](' + d['source_url'] + ')' if d.get('source_url') else ''}"
+            lines.append(f"- {s.slot}: {label} ({s.pick}) · ${s.cost_usd:,.0f}{src}")
         lines += ["", f"**Total ${plan.total_usd:,.0f}**"]
+        if any(s.pick_detail.get("source") for s in plan.slots):
+            lines.append("Live prices come from a web search and are what the locker room will pay; "
+                         "nothing is charged until you approve.")
 
     first = plans_col().find_one({"trip_id": plan.trip_id, "version": versions[0]})
     if first and version > versions[0]:
@@ -112,6 +118,10 @@ def build_message(signal: Signal, first_version: int | None = None) -> tuple[str
         if r["loop"] == "intake" or r["loop"] in versions:
             lines.append(f"| {r['loop']} | {r['subq_ms']} | {r['subq_usd']:.6f} | {r['gemini_ms']} "
                          f"| {r['gemini_usd']:.6f} |")
+    searches = list(run_log_col().find({"trip_id": plan.trip_id, "step": "search"}))
+    if searches:
+        lines.append(f"Live web search (Fetch.ai {searches[0]['model']}): {len(searches)} call(s), "
+                     f"{max(e['ms'] for e in searches) / 1000:.1f} s (run in parallel).")
     if verdict.reviewer:
         lines.append(f"Reviewed by {verdict.reviewer}.")
 
